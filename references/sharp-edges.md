@@ -25,8 +25,13 @@
 | SE-8  | Medium   | Yielding in Module Require                 |
 | SE-9  | Medium   | Table Length with Nil Gaps                  |
 | SE-10 | Low      | Deprecated wait()/spawn()/delay()          |
-| SE-11 | Medium   | Infinite Yield Warning                     |
+| SE-11 | Medium | Infinite Yield Warning                     |
 | SE-12 | Low      | String Patterns vs Regex                   |
+| SE-13 | High     | Shared Vehicle / Anchor Network Ownership  |
+| SE-14 | Medium   | StreamingEnabled Desync on Critical Models |
+| SE-15 | Medium   | Ephemeral Run State Mixed into DataStore   |
+| SE-16 | High     | `tick()` Clock Desync & Lag-Switch Abuse   |
+| SE-17 | Critical | Hidden Map Secrets Leaked on Client (ESP)  |
 
 ---
 
@@ -1199,6 +1204,89 @@ print(pct) -- "20"
 
 ---
 
+## SE-13 | High | Shared Vehicle / Anchor Network Ownership Exploits
+
+### Description
+
+Roblox automatically grants physics network ownership of unanchored parts or `VehicleSeat` assemblies to nearby or seated clients. If a moving team vehicle (like a Drill Machine) or shared base physics assembly gets client network ownership, an exploiter can teleport, fling, or speed-hack the entire team's base across the map, or weld forged parts at arbitrary offsets.
+
+### Solution
+
+Lock physics authority to the server with `PrimaryPart:SetNetworkOwner(nil)` on spawn and whenever `VehicleSeat.Occupant` changes, and validate all `WeldConstraint` requests server-side (`--!strict`).
+
+```luau
+--!strict
+local function enforceServerPhysics(vehicle: Model)
+	if vehicle.PrimaryPart then
+		vehicle.PrimaryPart:SetNetworkOwner(nil)
+	end
+	local seat = vehicle:FindFirstChildWhichIsA("VehicleSeat", true)
+	if seat then
+		seat:GetPropertyChangedSignal("Occupant"):Connect(function()
+			if vehicle.PrimaryPart then
+				vehicle.PrimaryPart:SetNetworkOwner(nil)
+			end
+		end)
+	end
+end
+```
+
+---
+
+## SE-14 | Medium | StreamingEnabled Desync on Critical Models
+
+### Description
+
+When `Workspace.StreamingEnabled = true`, distant models stream out on clients. If a player explores far from their Campfire, Drill Machine, or objective beacon, critical scripts or UI targets expecting that model can fail or visually disappear mid-run.
+
+### Solution
+
+Set `ModelStreamingMode = Enum.ModelStreamingMode.Persistent` (for core anchors/vehicles) or `Enum.ModelStreamingMode.Atomic` (so a complex model never partially streams in) on server startup.
+
+```luau
+--!strict
+campfireModel.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+drillModel.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+```
+
+---
+
+## SE-15 | Medium | Ephemeral Run State Mixed into DataStore Profiles
+
+### Description
+
+Saving active match/expedition state (current day, fuel level, depth meters, team coins) inside persistent `DataStoreService` player profiles causes DataStore budget exhaustion, cross-run corruption, and lost rejoin state when servers restart.
+
+### Solution
+
+Separate **Persistent Player Profiles** (`ProfileService`/`ProfileStore` with `SchemaVersion`) from **Ephemeral `RunSessionState`** kept in server memory and checkpointed with a TTL in `MemoryStoreService` (`GetHashMap`) for rejoin recovery.
+
+---
+
+## SE-16 | High | `tick()` Clock Desync & Unbounded Ping Exploits
+
+### Description
+
+Using `tick()` (which differs between client and server) or `os.time()` (1-second granularity) causes false eliminations in reflex mini-games (Red Light/Green Light, Simon Says). Conversely, compensating `player:GetNetworkPing()` without an upper cap allows exploiters using lag-switches to freeze indefinitely.
+
+### Solution
+
+Use **`workspace:GetServerTimeNow()`** everywhere as the single clock source, broadcast `IssuedAt` / `DeadlineAt`, and clamp ping compensation (`math.clamp(player:GetNetworkPing(), 0, 0.35)`).
+
+---
+
+## SE-17 | Critical | Hidden Map Secrets Leaked via Client Attributes (ESP)
+
+### Description
+
+Tagging safe Glass Bridge tiles or trap blocks with `IsSafe = true` `Attribute`s, differing `Name`s, or storing truth tables in `ReplicatedStorage` lets exploiters immediately render ESP overlays over every safe tile.
+
+### Solution
+
+Keep all client-facing parts visually and structurally identical, store secret tile/trap mappings strictly inside private `ServerScriptService` tables (`local safePanels: { [BasePart]: boolean } = {}`), and lock trap physics with `Part:SetNetworkOwner(nil)`.
+
+---
+
 ## Quick Reference: Severity at a Glance
 
 ```
@@ -1206,17 +1294,22 @@ CRITICAL (fix before shipping):
   SE-1  DataStore session locking        → Use ProfileService
   SE-2  Client-side currency             → Server-authoritative only
   SE-3  ProcessReceipt order             → Grant THEN PurchaseGranted
+  SE-17 Hidden map secrets leaked (ESP)  → ServerScriptService truth tables only
 
 HIGH (fix in current sprint):
-  SE-4  Undisconnected events            → Trove/Maid pattern
-  SE-5  RemoteEvent flooding             → Per-player rate limiter
+  SE-4  Undisconnected events            → Trove/Maid pattern (RoundTrove per round)
+  SE-5  RemoteEvent flooding             → Per-player rate limiter (os.clock)
   SE-6  BindToClose 30s timeout          → Parallel saves with task.spawn
+  SE-13 Vehicle/trap network ownership   → SetNetworkOwner(nil)
+  SE-16 Clock desync & lag-switch abuse  → workspace:GetServerTimeNow() + 0.35s ping cap
 
 MEDIUM (fix before scale):
   SE-7  Mobile part count                → StreamingEnabled + <10K parts
   SE-8  Yielding in module require       → Init/Start lifecycle pattern
   SE-9  Table # with nil gaps            → table.remove or explicit length
   SE-11 Infinite yield WaitForChild      → Always pass timeout parameter
+  SE-14 Streaming critical anchors       → ModelStreamingMode.Persistent/Atomic
+  SE-15 Ephemeral vs Persistent state    → Separate RunSessionState (MemoryStore)
 
 LOW (fix when convenient):
   SE-10 Deprecated wait/spawn/delay      → task.wait/spawn/delay

@@ -80,19 +80,23 @@ Search for deprecated APIs, anti-patterns, and code quality issues.
 | `wait(` | `task.wait(` | Medium |
 | `spawn(` | `task.spawn(` | Medium |
 | `delay(` | `task.delay(` | Medium |
+| `tick()` | `os.clock()` (elapsed) or `workspace:GetServerTimeNow()` (synced round time) | Medium |
 | `coroutine.wrap` / `coroutine.resume` | `task.spawn` / `task.defer` | Low |
 
-#### Anti-Patterns
+#### Anti-Patterns & Mandatory Standards Violations
 
 | Pattern | Issue | Fix |
 |---------|-------|-----|
+| Missing `--!strict` header | No static type verification | Add `--!strict` on line 1 of EVERY `.luau` file |
+| Missing type annotations | Untyped parameters/returns/state | Annotate all public APIs & share contracts in `ReplicatedStorage/Shared/Types` |
+| Spaghetti / God Scripts (>250 lines or logic in `Script`/`LocalScript`) | Unmaintainable coupling | Refactor into single-responsibility `ModuleScript` Services/Controllers with thin bootstrappers (`Init()`/`Start()`) |
 | Global variables (no `local` keyword) | Pollutes global scope, causes bugs | Always use `local` |
-| Missing type annotations | Reduces readability, no Luau type checking | Add `: type` annotations |
+| Yielding at top level of ModuleScript | Blocks all `require()` callers | Move `WaitForChild`/setup into `Init()`/`Start()` |
 | String concatenation in loops (`..`) | Creates garbage, slow in hot paths | Use `table.concat` or string interpolation |
-| `Instance.new("X")` then `.Parent = Y` | Two replication events | Pass parent as second arg or set parent last after configuring properties |
-| Nested `WaitForChild` chains | Fragile, slow, blocks thread | Cache references, use module-level variables |
+| `Instance.new("X")` then `.Parent = Y` | Two replication events | Set properties first, set `Parent` last |
+| Nested `WaitForChild` chains without timeout | Infinite yield risk | Cache references, pass timeout (`WaitForChild(name, 10)`) |
 | `pcall` without error handling | Silently swallows errors | Log or handle the error: `local ok, err = pcall(...)` |
-| Magic numbers | Unclear intent | Use named constants |
+| Magic numbers | Unclear intent | Use named constants in `Shared/Config/Constants.luau` |
 
 #### Duplicate Code
 
@@ -112,20 +116,28 @@ Evaluate the overall code architecture for maintainability and scalability.
 
 ### Module Boundaries
 
-- Do ModuleScripts have clear, single responsibilities?
-- Are module APIs clean (small public surface, implementation hidden)?
-- Do modules return a table of functions (standard pattern) or use other patterns?
+- Do all domain logics live in single-responsibility `ModuleScript` Services (`ServerScriptService/Services/`) and Controllers (`StarterPlayerScripts/Controllers/`) rather than `Script`/`LocalScript` files?
+- Does every file start with `--!strict` and implement clean `Init()` → `Start()` without top-level yields?
+- Are server-internal transitions decoupled via typed `Signal` / `BindableEvent` (`EventBus`) rather than reaching into another service's private tables?
+- Are ephemeral run state (`RunSessionState`) and persistent player profiles (`DataStore` / `ProfileService`) cleanly separated?
+- For round-based games: are maps, connections, and `task` threads cleaned deterministically via `RoundTrove:Clean()` between rounds, and do traps/moving parts lock `SetNetworkOwner(nil)`?
 
-```lua
--- GOOD: Clean module pattern
+```luau
+--!strict
+-- GOOD: Clean --!strict modular service pattern
 local InventoryService = {}
 
-function InventoryService.addItem(player, itemId, quantity)
-    -- implementation
+function InventoryService.Init()
+    -- register remotes, subscribe to EventBus
 end
 
-function InventoryService.removeItem(player, itemId, quantity)
+function InventoryService.Start()
+    -- connect lifecycle events
+end
+
+function InventoryService.addItem(player: Player, itemId: string, quantity: number): boolean
     -- implementation
+    return true
 end
 
 return InventoryService

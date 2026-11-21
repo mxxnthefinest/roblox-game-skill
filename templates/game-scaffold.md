@@ -5,14 +5,13 @@
 This is the universal foundation for ANY Roblox game regardless of genre. Use this as the starting point before applying genre-specific templates (simulator, tycoon, obby, RPG, horror, battle royale, etc.). Genre templates build on top of this scaffold -- they never replace it.
 
 This scaffold provides:
-- Standard folder structure with clear separation of concerns
-- Server game lifecycle management
-- Player data persistence using the ProfileService pattern
-- Centralized remote event validation with rate limiting
-- Client initialization and system bootstrapping
-- Shared type definitions and constants
+- Modular `ModuleScript` architecture with thin bootstrappers (`GameManager.server.luau`, `ClientController.client.luau`)
+- Mandatory `--!strict` Luau type safety across every file
+- 3-layer data separation (Persistent `ProfileService` + Ephemeral `RunSessionState` + Hidden `ServerStorage` definitions)
+- Centralized `RemoteHandler` validation, `os.clock()` rate limiting, and `RemoteFunction` initial-sync restriction
+- Shared type definitions (`Types.luau`) and deterministic constants (`Constants.luau`)
 
-All code uses `.luau` extension, Luau type annotations, and follows production best practices.
+All code uses `.luau` extension, `--!strict` at line 1, explicit type annotations, and `Init()` / `Start()` module lifecycles.
 
 ---
 
@@ -21,41 +20,45 @@ All code uses `.luau` extension, Luau type annotations, and follows production b
 ```
 game/
 ├── ServerScriptService/
-│   ├── GameManager.server.luau      -- Game lifecycle: init, load modules, create remotes, game loop
-│   ├── DataManager.server.luau      -- Player data persistence (ProfileService pattern)
-│   └── RemoteHandler.server.luau    -- Centralized remote validation, rate limiting, dispatch
+│   ├── GameManager.server.luau      -- Thin server bootstrapper: init, load modules, create remotes, game loop
+│   ├── DataManager.luau             -- ModuleScript: persistent profile handling (ProfileService pattern)
+│   ├── RemoteHandler.luau           -- ModuleScript: centralized remote validation, rate limiting, dispatch
+│   └── Services/                    -- Domain ModuleScript services (Init/Start lifecycle, EventBus decoupled)
 ├── ServerStorage/
 │   ├── Modules/                     -- Server-only modules (not visible to clients)
 │   │   └── ItemDefinitions.luau     -- Item/asset data tables, drop rates, pricing
 │   └── Assets/                      -- Server-only models/assets (cloned on demand)
 ├── ReplicatedStorage/
 │   ├── Shared/                      -- Shared modules (both server and client can require)
-│   │   ├── Types.luau               -- Shared type definitions (PlayerData, ItemData, etc.)
+│   │   ├── Types.luau               -- Shared --!strict type definitions (PlayerData, RunSessionState, etc.)
 │   │   └── Constants.luau           -- Shared constants (intervals, limits, enums)
-│   ├── Remotes/                     -- RemoteEvents and RemoteFunctions (created at runtime by GameManager)
+│   ├── Remotes/                     -- Single folder for all RemoteEvents (plus optional RF_InitialSync)
 │   └── Assets/                      -- Client-visible assets (effects, animations, UI prefabs)
 ├── StarterGui/
-│   └── MainGui/                     -- Primary ScreenGui container for all UI
+│   └── MainGui/                     -- Primary ScreenGui container (ResetOnSpawn = false)
 ├── StarterPlayer/
 │   └── StarterPlayerScripts/
-│       └── ClientController.client.luau  -- Client initialization, input, UI wiring
+│       ├── ClientController.client.luau  -- Thin client bootstrapper (input & presentation only)
+│       └── Controllers/                  -- Modular client controller ModuleScripts
 └── Workspace/
-    └── Map/                         -- Game world geometry and spawn locations
+    └── Map/                         -- Game world geometry (StreamingEnabled = true; critical anchors Persistent/Atomic)
 ```
+
+For multi-system games (e.g., co-op survival, RPGs, expeditions), extend `ServerScriptService/` with `Core/` (`EventBus.luau`, `SessionMemoryService.luau`) and `Services/` per `references/modular-service-architecture.md`.
 
 ### Placement Rules
 
 | Content | Location | Why |
 |---------|----------|-----|
-| Game logic, data, anti-cheat | `ServerScriptService` | Hidden from clients, server-authoritative |
+| Thin server bootstrapper & `ModuleScript` services | `ServerScriptService` | Hidden from clients, server-authoritative, zero spaghetti scripts |
 | Secret configs, drop tables, pricing | `ServerStorage/Modules` | Clients cannot read server storage |
 | Cloneable models, maps, NPCs | `ServerStorage/Assets` | Loaded on demand, hidden until needed |
-| Shared types, constants, utilities | `ReplicatedStorage/Shared` | Both sides need identical definitions |
-| RemoteEvents/Functions | `ReplicatedStorage/Remotes` | Must be accessible from both sides |
+| Shared types, constants, utilities | `ReplicatedStorage/Shared` | Both sides check against identical `--!strict` contracts |
+| `RemoteEvent`s (`RF_InitialSync` only for RemoteFunction) | `ReplicatedStorage/Remotes` | Single centralized network surface |
 | Client-visible effects, animations | `ReplicatedStorage/Assets` | Client needs to render these |
-| UI layouts | `StarterGui` | Cloned into PlayerGui on spawn |
-| Client controllers | `StarterPlayerScripts` | Persist across respawns |
-| 3D world | `Workspace/Map` | The live game environment |
+| UI layouts | `StarterGui` | Cloned into PlayerGui on spawn (`ResetOnSpawn = false`) |
+| Client bootstrappers & controllers | `StarterPlayerScripts` | Persist across respawns; input & display only |
+| 3D world | `Workspace/Map` | Live world (`StreamingEnabled = true`; critical anchors `Atomic`/`Persistent`) |
 
 ---
 
@@ -309,13 +312,15 @@ GameManager.init()
 GameManager.start()
 ```
 
-### DataManager (`ServerScriptService/DataManager.server.luau`)
+### DataManager (`ServerScriptService/DataManager.luau`)
 
 ```luau
 --!strict
 --[[
-	DataManager.server.luau
-	Player data persistence using the ProfileService pattern.
+	DataManager.luau (ModuleScript)
+	Player persistent profile persistence using the ProfileService pattern.
+	Note: Keep ephemeral match/run state (RunSessionState) OUT of DataStore;
+	use SessionMemoryService (MemoryStoreService) for active run rejoin recovery.
 
 	Features:
 	- Profile template with default values for new players
@@ -656,13 +661,15 @@ end
 return DataManager
 ```
 
-### RemoteHandler (`ServerScriptService/RemoteHandler.server.luau`)
+### RemoteHandler (`ServerScriptService/RemoteHandler.luau`)
 
 ```luau
 --!strict
 --[[
-	RemoteHandler.server.luau
-	Centralized remote event/function validation and dispatch.
+	RemoteHandler.luau (ModuleScript)
+	Centralized remote event/initial-sync validation and dispatch.
+	Note: Reserve RemoteFunction strictly for Initial State Sync (RF_InitialSync).
+	All gameplay mutations MUST use RemoteEvent with runtime schema validation.
 
 	Features:
 	- Register remotes with handler + validator in one call
@@ -1049,6 +1056,19 @@ local updateUIRemote = remotesFolder:WaitForChild(Constants.Remotes.UpdateUI) ::
 
 local playerData: { [string]: any }? = nil
 
+-- Declare UI functions before connecting events (--!strict requires declaration order)
+local function initializeUI(data: { [string]: any })
+	-- Find the MainGui ScreenGui
+	local mainGui = playerGui:WaitForChild("MainGui", 10)
+	if not mainGui then
+		warn("[ClientController] MainGui not found")
+		return
+	end
+
+	-- Genre controllers wire up specific UI elements here.
+	print("[ClientController] UI initialized")
+end
+
 print("[ClientController] Waiting for player data...")
 
 dataLoadedRemote.OnClientEvent:Connect(function(data: { [string]: any })
@@ -1065,19 +1085,6 @@ end)
 
 -- Disable default Roblox UI elements as needed
 -- StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
-
-local function initializeUI(data: { [string]: any })
-	-- Find the MainGui ScreenGui
-	local mainGui = playerGui:WaitForChild("MainGui", 10)
-	if not mainGui then
-		warn("[ClientController] MainGui not found")
-		return
-	end
-
-	-- Genre templates wire up specific UI elements here.
-	-- Example: update cash display, level display, etc.
-	print("[ClientController] UI initialized")
-end
 
 -- Listen for server-pushed UI updates
 updateUIRemote.OnClientEvent:Connect(function(updateType: string, payload: any)
@@ -1320,12 +1327,12 @@ ItemDefinitions.Items = {
 	},
 }
 
-function ItemDefinitions.get(itemId)
+function ItemDefinitions.get(itemId: string): typeof(ItemDefinitions.Items[""])?
 	return ItemDefinitions.Items[itemId]
 end
 
-function ItemDefinitions.getByCategory(category)
-	local results = {}
+function ItemDefinitions.getByCategory(category: string): { [string]: typeof(ItemDefinitions.Items[""]) }
+	local results: { [string]: typeof(ItemDefinitions.Items[""]) } = {}
 	for id, item in ItemDefinitions.Items do
 		if item.Category == category then
 			results[id] = item
@@ -1345,14 +1352,13 @@ createScript(ServerScriptService, "DataManager", "ModuleScript", [[
 --!strict
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
-local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
 
 local DataManager = {}
 
-local PROFILE_TEMPLATE = {
+local PROFILE_TEMPLATE: { [string]: any } = {
 	DataVersion = 1,
 	Cash = 0,
 	Level = 1,
@@ -1371,15 +1377,15 @@ local PROFILE_TEMPLATE = {
 }
 
 local dataStore = DataStoreService:GetDataStore(Constants.DATA_STORE_NAME)
-local playerDataCache = {}
+local playerDataCache: { [Player]: { [string]: any } } = {}
 local MAX_RETRIES = 3
 local RETRY_DELAY = 2
 
-local function deepClone(original)
-	local clone = {}
+local function deepClone(original: { [string]: any }): { [string]: any }
+	local clone: { [string]: any } = {}
 	for key, value in original do
 		if typeof(value) == "table" then
-			clone[key] = deepClone(value)
+			clone[key] = deepClone(value :: { [string]: any })
 		else
 			clone[key] = value
 		end
@@ -1387,39 +1393,39 @@ local function deepClone(original)
 	return clone
 end
 
-local function reconcile(data, template)
+local function reconcile(data: { [string]: any }, template: { [string]: any })
 	for key, default in template do
 		if data[key] == nil then
 			if typeof(default) == "table" then
-				data[key] = deepClone(default)
+				data[key] = deepClone(default :: { [string]: any })
 			else
 				data[key] = default
 			end
 		elseif typeof(default) == "table" and typeof(data[key]) == "table" then
-			reconcile(data[key], default)
+			reconcile(data[key] :: { [string]: any }, default :: { [string]: any })
 		end
 	end
 end
 
-local function validateData(data)
+local function validateData(data: { [string]: any }): boolean
 	if typeof(data) ~= "table" then return false end
 	if typeof(data.Cash) ~= "number" or data.Cash ~= data.Cash then return false end
 	if typeof(data.Level) ~= "number" or data.Level < 1 then return false end
 	return true
 end
 
-local function getKey(player)
+local function getKey(player: Player): string
 	return "Player_" .. player.UserId
 end
 
-local function loadData(player)
+local function loadData(player: Player): { [string]: any }?
 	local key = getKey(player)
 	for attempt = 1, MAX_RETRIES do
 		local success, result = pcall(function()
 			return dataStore:GetAsync(key)
 		end)
 		if success then
-			local data = result or deepClone(PROFILE_TEMPLATE)
+			local data: { [string]: any } = if typeof(result) == "table" then result else deepClone(PROFILE_TEMPLATE)
 			reconcile(data, PROFILE_TEMPLATE)
 			if data.Statistics.JoinedTimestamp == 0 then
 				data.Statistics.JoinedTimestamp = os.time()
@@ -1427,7 +1433,7 @@ local function loadData(player)
 			data.Statistics.GamesPlayed += 1
 			return data
 		end
-		warn("[DataManager] Load attempt " .. attempt .. "/" .. MAX_RETRIES .. " failed for " .. player.Name .. ": " .. tostring(result))
+		warn(`[DataManager] Load attempt {attempt}/{MAX_RETRIES} failed for {player.Name}: {result}`)
 		if attempt < MAX_RETRIES then
 			task.wait(RETRY_DELAY * attempt)
 		end
@@ -1435,11 +1441,11 @@ local function loadData(player)
 	return nil
 end
 
-local function saveData(player)
+local function saveData(player: Player): boolean
 	local data = playerDataCache[player]
 	if not data then return false end
 	if not validateData(data) then
-		warn("[DataManager] Invalid data for " .. player.Name .. ", skipping save")
+		warn(`[DataManager] Invalid data for {player.Name}, skipping save`)
 		return false
 	end
 	local key = getKey(player)
@@ -1450,12 +1456,12 @@ local function saveData(player)
 			end)
 		end)
 		if success then return true end
-		warn("[DataManager] Save attempt " .. attempt .. "/" .. MAX_RETRIES .. " failed for " .. player.Name .. ": " .. tostring(err))
+		warn(`[DataManager] Save attempt {attempt}/{MAX_RETRIES} failed for {player.Name}: {err}`)
 		if attempt < MAX_RETRIES then
 			task.wait(RETRY_DELAY * attempt)
 		end
 	end
-	warn("[DataManager] All save retries exhausted for " .. player.Name)
+	warn(`[DataManager] All save retries exhausted for {player.Name}`)
 	return false
 end
 
@@ -1463,7 +1469,7 @@ function DataManager.init()
 	print("[DataManager] Initialized")
 end
 
-function DataManager.loadPlayer(player)
+function DataManager.loadPlayer(player: Player)
 	local data = loadData(player)
 	if not data then
 		player:Kick("Failed to load your data. Please rejoin.")
@@ -1491,10 +1497,10 @@ function DataManager.loadPlayer(player)
 			remote:FireClient(player, { Cash = data.Cash, Level = data.Level, Experience = data.Experience })
 		end
 	end
-	print("[DataManager] Loaded data for " .. player.Name)
+	print(`[DataManager] Loaded data for {player.Name}`)
 end
 
-function DataManager.unloadPlayer(player)
+function DataManager.unloadPlayer(player: Player)
 	local data = playerDataCache[player]
 	if data then
 		local leaderstats = player:FindFirstChild("leaderstats")
@@ -1507,14 +1513,14 @@ function DataManager.unloadPlayer(player)
 		saveData(player)
 		playerDataCache[player] = nil
 	end
-	print("[DataManager] Unloaded data for " .. player.Name)
+	print(`[DataManager] Unloaded data for {player.Name}`)
 end
 
-function DataManager.getData(player)
+function DataManager.getData(player: Player): { [string]: any }?
 	return playerDataCache[player]
 end
 
-function DataManager.setData(player, key, value)
+function DataManager.setData(player: Player, key: string, value: any): boolean
 	local data = playerDataCache[player]
 	if not data then return false end
 	data[key] = value
@@ -1528,7 +1534,7 @@ function DataManager.setData(player, key, value)
 	return true
 end
 
-function DataManager.updateData(player, key, transform)
+function DataManager.updateData(player: Player, key: string, transform: (current: any) -> any): boolean
 	local data = playerDataCache[player]
 	if not data then return false end
 	local newValue = transform(data[key])
@@ -1559,7 +1565,7 @@ function DataManager.saveAllPlayersSync()
 	print("[DataManager] Shutdown save complete")
 end
 
-function DataManager.getProfileTemplate()
+function DataManager.getProfileTemplate(): { [string]: any }
 	return deepClone(PROFILE_TEMPLATE)
 end
 
@@ -1579,11 +1585,11 @@ local Constants = require(ReplicatedStorage.Shared.Constants)
 
 local RemoteHandler = {}
 
-local rateLimitData = {}
-local cooldownData = {}
-local violationCounts = {}
+local rateLimitData: { [Player]: { [string]: { number } } } = {}
+local cooldownData: { [Player]: { [string]: number } } = {}
+local violationCounts: { [Player]: number } = {}
 
-local function checkRateLimit(player, remoteName, maxRequests)
+local function checkRateLimit(player: Player, remoteName: string, maxRequests: number): boolean
 	local now = os.clock()
 	local windowSeconds = Constants.REMOTE_WINDOW
 	if not rateLimitData[player] then rateLimitData[player] = {} end
@@ -1591,14 +1597,14 @@ local function checkRateLimit(player, remoteName, maxRequests)
 	if not playerRates[remoteName] then playerRates[remoteName] = {} end
 	local timestamps = playerRates[remoteName]
 	local windowStart = now - windowSeconds
-	local pruned = {}
+	local pruned: { number } = {}
 	for _, ts in timestamps do
 		if ts > windowStart then table.insert(pruned, ts) end
 	end
 	playerRates[remoteName] = pruned
 	if #pruned >= maxRequests then
 		violationCounts[player] = (violationCounts[player] or 0) + 1
-		warn("[RemoteHandler] Rate limited " .. player.Name .. " on " .. remoteName)
+		warn(`[RemoteHandler] Rate limited {player.Name} on {remoteName}`)
 		if violationCounts[player] >= Constants.REMOTE_KICK_THRESHOLD then
 			task.defer(function() player:Kick("Too many requests.") end)
 		end
@@ -1609,7 +1615,7 @@ local function checkRateLimit(player, remoteName, maxRequests)
 	return true
 end
 
-local function checkCooldown(player, remoteName, cooldownSeconds)
+local function checkCooldown(player: Player, remoteName: string, cooldownSeconds: number): boolean
 	local now = os.clock()
 	if not cooldownData[player] then cooldownData[player] = {} end
 	local lastUsed = cooldownData[player][remoteName]
@@ -1621,20 +1627,22 @@ end
 function RemoteHandler.init()
 	local remotesFolder = ReplicatedStorage:FindFirstChild("Remotes")
 	if not remotesFolder then
-		remotesFolder = Instance.new("Folder")
-		remotesFolder.Name = "Remotes"
-		remotesFolder.Parent = ReplicatedStorage
+		local created = Instance.new("Folder")
+		created.Name = "Remotes"
+		created.Parent = ReplicatedStorage
+		remotesFolder = created
 	end
 	RemoteHandler.createRemote(Constants.Remotes.PlayerDataLoaded, "Event")
 	RemoteHandler.createRemote(Constants.Remotes.UpdateUI, "Event")
 	print("[RemoteHandler] Initialized")
 end
 
-function RemoteHandler.createRemote(name, remoteType)
-	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
+function RemoteHandler.createRemote(name: string, remoteType: string): Instance
+	local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", 10)
+	assert(remotesFolder, "[RemoteHandler] Remotes folder missing")
 	local existing = remotesFolder:FindFirstChild(name)
 	if existing then return existing end
-	local remote
+	local remote: Instance
 	if remoteType == "Function" then
 		remote = Instance.new("RemoteFunction")
 	else
@@ -1645,13 +1653,20 @@ function RemoteHandler.createRemote(name, remoteType)
 	return remote
 end
 
-function RemoteHandler.register(config)
+function RemoteHandler.register(config: {
+	Name: string,
+	Type: string,
+	Handler: (Player, ...any) -> ...any,
+	Validator: ((Player, ...any) -> (boolean, string?))?,
+	Cooldown: number?,
+	RateLimit: number?,
+})
 	local remote = RemoteHandler.createRemote(config.Name, config.Type)
 	local cooldownSeconds = config.Cooldown or 0
 	local maxRate = config.RateLimit or Constants.MAX_REMOTE_RATE
 
 	if config.Type == "Event" then
-		remote.OnServerEvent:Connect(function(player, ...)
+		(remote :: RemoteEvent).OnServerEvent:Connect(function(player: Player, ...: any)
 			if not checkRateLimit(player, config.Name, maxRate) then return end
 			if cooldownSeconds > 0 then
 				if not checkCooldown(player, config.Name, cooldownSeconds) then return end
@@ -1659,38 +1674,38 @@ function RemoteHandler.register(config)
 			if config.Validator then
 				local valid, reason = config.Validator(player, ...)
 				if not valid then
-					warn("[RemoteHandler] Validation failed for " .. player.Name .. " on " .. config.Name .. ": " .. (reason or "unknown"))
+					warn(`[RemoteHandler] Validation failed for {player.Name} on {config.Name}: {reason or "unknown"}`)
 					return
 				end
 			end
 			config.Handler(player, ...)
 		end)
 	elseif config.Type == "Function" then
-		remote.OnServerInvoke = function(player, ...)
+		(remote :: RemoteFunction).OnServerInvoke = function(player: Player, ...: any): ...any
 			if not checkRateLimit(player, config.Name, maxRate) then return nil end
 			if cooldownSeconds > 0 then
 				if not checkCooldown(player, config.Name, cooldownSeconds) then return nil end
 			end
 			if config.Validator then
-				local valid, reason = config.Validator(player, ...)
+				local valid, _reason = config.Validator(player, ...)
 				if not valid then
-					warn("[RemoteHandler] Validation failed for " .. player.Name .. " on " .. config.Name)
+					warn(`[RemoteHandler] Validation failed for {player.Name} on {config.Name}`)
 					return nil
 				end
 			end
 			return config.Handler(player, ...)
 		end
 	end
-	print("[RemoteHandler] Registered remote: " .. config.Name)
+	print(`[RemoteHandler] Registered remote: {config.Name}`)
 end
 
-function RemoteHandler.cleanupPlayer(player)
+function RemoteHandler.cleanupPlayer(player: Player)
 	rateLimitData[player] = nil
 	cooldownData[player] = nil
 	violationCounts[player] = nil
 end
 
-function RemoteHandler.fireClient(remoteName, player, ...)
+function RemoteHandler.fireClient(remoteName: string, player: Player, ...: any)
 	local remotesFolder = ReplicatedStorage:FindFirstChild("Remotes")
 	if not remotesFolder then return end
 	local remote = remotesFolder:FindFirstChild(remoteName)
@@ -1699,7 +1714,7 @@ function RemoteHandler.fireClient(remoteName, player, ...)
 	end
 end
 
-function RemoteHandler.fireAllClients(remoteName, ...)
+function RemoteHandler.fireAllClients(remoteName: string, ...: any)
 	local remotesFolder = ReplicatedStorage:FindFirstChild("Remotes")
 	if not remotesFolder then return end
 	local remote = remotesFolder:FindFirstChild(remoteName)
@@ -1728,25 +1743,24 @@ local RemoteHandler = require(ServerScriptService.RemoteHandler)
 local isInitialized = false
 local isRunning = false
 
-local function createRemoteFolder()
+local function createRemoteFolder(): Folder
 	local existing = ReplicatedStorage:FindFirstChild("Remotes")
-	if existing then return existing end
+	if existing and existing:IsA("Folder") then return existing end
 	local folder = Instance.new("Folder")
 	folder.Name = "Remotes"
 	folder.Parent = ReplicatedStorage
 	return folder
 end
 
-local function onPlayerAdded(player)
+local function onPlayerAdded(player: Player)
 	DataManager.loadPlayer(player)
 end
 
-local function onPlayerRemoving(player)
+local function onPlayerRemoving(player: Player)
 	DataManager.unloadPlayer(player)
 	RemoteHandler.cleanupPlayer(player)
 end
 
--- Init
 print("[GameManager] Initializing...")
 createRemoteFolder()
 DataManager.init()
@@ -1762,11 +1776,10 @@ end
 isInitialized = true
 print("[GameManager] Initialization complete")
 
--- Game loop
 isRunning = true
 local autoSaveTimer = 0
 
-RunService.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function(dt: number)
 	if not isRunning then return end
 	autoSaveTimer += dt
 	if autoSaveTimer >= Constants.SAVE_INTERVAL then
@@ -1793,44 +1806,43 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
-local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
+local Constants = require(ReplicatedStorage:WaitForChild("Shared", 10):WaitForChild("Constants", 10))
 
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local playerGui = player:WaitForChild("PlayerGui", 10)
 
-local remotesFolder = ReplicatedStorage:WaitForChild("Remotes")
-local dataLoadedRemote = remotesFolder:WaitForChild(Constants.Remotes.PlayerDataLoaded)
-local updateUIRemote = remotesFolder:WaitForChild(Constants.Remotes.UpdateUI)
+local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", 10)
+local dataLoadedRemote = remotesFolder:WaitForChild(Constants.Remotes.PlayerDataLoaded, 10) :: RemoteEvent
+local updateUIRemote = remotesFolder:WaitForChild(Constants.Remotes.UpdateUI, 10) :: RemoteEvent
 
-local playerData = nil
+local playerData: { [string]: any }? = nil
 
-local function initializeUI(data)
+local function initializeUI(data: { [string]: any })
 	local mainGui = playerGui:WaitForChild("MainGui", 10)
 	if not mainGui then
 		warn("[ClientController] MainGui not found")
 		return
 	end
-	print("[ClientController] UI initialized")
+	print(`[ClientController] UI initialized (Level {data.Level}, Cash {data.Cash})`)
 end
 
-dataLoadedRemote.OnClientEvent:Connect(function(data)
+dataLoadedRemote.OnClientEvent:Connect(function(data: { [string]: any })
 	playerData = data
-	print("[ClientController] Data received: Level " .. data.Level .. ", Cash " .. data.Cash)
 	initializeUI(data)
 end)
 
-updateUIRemote.OnClientEvent:Connect(function(updateType, payload)
+updateUIRemote.OnClientEvent:Connect(function(updateType: string, payload: any)
 	-- Dispatch UI updates by type
 end)
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 	if gameProcessed then return end
 	-- Add input bindings here
 end)
 
-local function onCharacterAdded(character)
-	local humanoid = character:WaitForChild("Humanoid")
-	local rootPart = character:WaitForChild("HumanoidRootPart")
+local function onCharacterAdded(character: Model)
+	local _humanoid = character:WaitForChild("Humanoid", 10)
+	local _rootPart = character:WaitForChild("HumanoidRootPart", 10)
 	print("[ClientController] Character spawned")
 end
 
@@ -1895,10 +1907,10 @@ For developers working directly in Roblox Studio without MCP:
    - Paste the **ItemDefinitions** code from the Core Modules section above.
 
 2. In `ServerScriptService`, insert a **ModuleScript** named `DataManager`.
-   - Paste the **DataManager** code (the MCP version without `--!strict` annotations if your Studio does not support them).
+   - Paste the **DataManager** `--!strict` ModuleScript code from the Core Modules section above.
 
 3. In `ServerScriptService`, insert a **ModuleScript** named `RemoteHandler`.
-   - Paste the **RemoteHandler** code.
+   - Paste the **RemoteHandler** `--!strict` ModuleScript code.
 
 ### Step 4: Create the Game Manager (Entry Point)
 

@@ -20,6 +20,8 @@ Scan the user's message for these keywords (case-insensitive). Match the first g
 
 | Genre | Keywords |
 |---|---|
+| Elimination Survival | elimination, death penalty, ink game, squid game, simon says, red light green light, glass bridge, trial, last survivor |
+| Survival / Expedition | survival, nights, campfire, drill, core, forest, dig, underground, co-op survival, expedition, fuel |
 | Simulator | simulator, sim, clicking, rebirth, prestige, idle, grind, farm |
 | Tycoon | tycoon, factory, build, base, dropper, conveyor, empire |
 | Obby | obby, obstacle, parkour, jump, platformer, tower, stages |
@@ -41,13 +43,15 @@ Present a multiple-choice prompt:
 
 > What type of game are you building?
 >
-> 1. **Simulator** -- Click, collect, upgrade, rebirth loops
-> 2. **Tycoon** -- Build a base/factory, earn currency, expand
-> 3. **Obby** -- Obstacle course with stages/checkpoints
-> 4. **RPG** -- Quests, combat, leveling, story-driven adventure
-> 5. **Horror** -- Atmospheric scares, survival, escape scenarios
-> 6. **Battle Royale** -- PvP combat, last player/team standing
-> 7. **Custom** -- I have something unique in mind (describe it)
+> 1. **Elimination Survival** -- Round-based trials, Simon Says, Red Light/Green Light, Glass Bridge, Spectator Sabotage, Finale Showdown
+> 2. **Survival / Expedition** -- Co-op central anchor (campfire/drill), fuel loop, night/wave defense, layered depth/map
+> 3. **Simulator** -- Click, collect, upgrade, rebirth loops
+> 4. **Tycoon** -- Build a base/factory, earn currency, expand
+> 5. **Obby** -- Obstacle course with stages/checkpoints
+> 6. **RPG** -- Quests, combat, leveling, story-driven adventure
+> 7. **Horror** -- Atmospheric scares, survival, escape scenarios
+> 8. **Battle Royale** -- PvP combat, last player/team standing
+> 9. **Custom** -- I have something unique in mind (describe it)
 
 If the user selects **Custom**, skip genre-specific templates in Step 2 and use only the universal scaffold. Gather a short description of their concept to inform architecture decisions.
 
@@ -59,12 +63,11 @@ Load the appropriate template files based on the detected genre.
 
 ### Always Load
 
-Read `templates/game-scaffold.md` -- this contains the universal base structure that every game needs:
-- Folder hierarchy (ServerScriptService, ReplicatedStorage, etc.)
-- DataManager boilerplate
-- Remote event setup
-- Loading screen
-- Core configuration module
+Read `templates/game-scaffold.md` AND `references/modular-service-architecture.md` -- these define the mandatory universal foundation that every game MUST enforce:
+- Thin bootstrappers (`ServerMain.server.luau`, `ClientMain.client.luau`) + single-responsibility `ModuleScript` Services & Controllers (`Init()` / `Start()`)
+- Mandatory `--!strict` type safety on every `.luau` file + shared `Types.luau` contracts
+- Typed `Signal` `EventBus` (`BE_*`) + centralized `RemoteGateway` (`RE_*`, `RF_InitialSync` only)
+- 3-layer Data separation (`ProfileService` persistent vs `RunSessionState` + `MemoryStoreService` vs hidden `ServerStorage/Modules`)
 
 ### Genre-Specific Load
 
@@ -72,6 +75,8 @@ Read the genre template based on the detected type:
 
 | Genre | Template File |
 |---|---|
+| Elimination Survival | `templates/genre-elimination-survival.md` |
+| Survival / Expedition | `templates/genre-survival-expedition.md` |
 | Simulator | `templates/genre-simulator.md` |
 | Tycoon | `templates/genre-tycoon.md` |
 | Obby | `templates/genre-obby.md` |
@@ -387,17 +392,19 @@ return DataManager
 
 After outputting each system, briefly explain what it does and how it connects to other systems.
 
-### Code Quality Requirements
+### Code Quality Requirements (Non-Negotiable)
 
-Every generated system must follow these rules (from SKILL.md and references):
+Every generated system MUST enforce these rules (from `SKILL.md` and `references/modular-service-architecture.md`):
 
-- **Never trust the client** -- all validation server-side
-- **Use pcall for DataStore operations** -- handle failures gracefully
-- **Use task library** -- `task.wait()`, `task.spawn()`, `task.delay()` (never deprecated `wait()`)
-- **Disconnect events on cleanup** -- store connections, disconnect on player removal
-- **Type annotations** -- use Luau types on function signatures
-- **Rate limiting** -- server-side cooldowns on all RemoteEvent handlers
-- **No circular dependencies** -- use the init() pattern if modules need cross-references
+- **Mandatory `--!strict`** -- line 1 of EVERY `.luau` file, with full parameter/return/table type annotations
+- **Zero spaghetti / God scripts** -- single-responsibility `ModuleScript` Services (`ServerScriptService/Services/`) and Controllers (`StarterPlayerScripts/Controllers/`) wired by thin bootstrappers using `Init()` → `Start()`
+- **Zero top-level yields & zero circular `require()`** -- decouple inter-service communication via `EventBus` (`Signal` / `BindableEvent`)
+- **Never trust the client** -- client = input & presentation only; server validates `typeof()`, NaN (`v == v`), range, cooldown (`os.clock()`), LoS/cone (`DotProduct`/Raycast), `HumanoidRootPart` motion deltas (never `MoveDirection`), and `InstanceUUID` ownership
+- **Deterministic server time & hidden secrets** -- use `workspace:GetServerTimeNow()` + capped `GetNetworkPing()` (`<= 0.35s`) for round/reflex timing; keep secret panel/trap tables strictly in `ServerScriptService`
+- **Strict `RemoteFunction` limit** -- restrict `RemoteFunction` to Initial State Sync only (`RF_InitialSync`); all gameplay actions use `RemoteEvent` (plus `Attribute`s for sticky late-joiner states)
+- **3-layer data separation** -- `ProfileService`/`ProfileStore` for persistent profiles (`pcall` + parallel `BindToClose`), `MemoryStoreService` for ephemeral `RunSessionState` rejoin checkpoints, `ServerStorage/Modules` for hidden drop/pricing configs
+- **Physics & streaming safety** -- `SetNetworkOwner(nil)` + server `WeldConstraint` checks on shared vehicles, traps, and moving platforms; `ModelStreamingMode = Atomic/Persistent` under `StreamingEnabled = true`
+- **Use `task` library & `Trove`** -- never deprecated `wait()`/`spawn()`/`delay()`; clean per-player connections on `PlayerRemoving` and per-round maps/threads via `RoundTrove:Clean()`
 
 ---
 

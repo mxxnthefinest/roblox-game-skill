@@ -832,6 +832,32 @@ end
 local totalDefeated = incrementGlobalCounter("TotalEnemiesDefeated", 1)
 ```
 
+### Persistent Profile vs. Ephemeral Run State (`MemoryStoreService`)
+
+**Strict Rule:** Never mix ephemeral match/expedition state (`RunSessionState`: current day/night, fuel, depth meters, team coins, active weather, cleared dungeons) into persistent `DataStoreService` player profiles.
+
+| Tier | Storage Mechanism | What Goes Here | Lifetime |
+|---|---|---|---|
+| **Persistent Profile** | `ProfileService` / `ProfileStore` (`DataStoreService`) | `SchemaVersion`, meta currencies (`Diamonds`/`Cores`), class levels & quest progress, records, achievements, user settings | Permanent (cross-session) |
+| **Ephemeral Run State** | Server memory + `MemoryStoreService` (`GetHashMap`) | Active `RunSessionState`, current day/fuel/depth, completed run structures (for mid-run rejoin recovery) | Short TTL (e.g., `3600s`) |
+
+```luau
+--!strict
+-- Ephemeral Run Checkpoint with MemoryStoreService (rejoin persistence)
+local MemoryStoreService = game:GetService("MemoryStoreService")
+local runMap = MemoryStoreService:GetHashMap("RunCheckpoints_v1")
+
+local function saveRunCheckpoint(sessionKey: string, runState: { [string]: any }): boolean
+	local ok, err = pcall(function()
+		runMap:SetAsync(sessionKey, runState, 3600) -- expires automatically after 1h
+	end)
+	if not ok then
+		warn(`[SessionMemory] Checkpoint save failed: {err}`)
+	end
+	return ok
+end
+```
+
 ---
 
 ## 10. Best Practices

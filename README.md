@@ -4,18 +4,19 @@ The ultimate Roblox game development Claude Code skill. A self-contained, full-l
 
 ## Stats
 
-- **31 files** | **30,677 lines** | **1.0 MB**
-- 121-line SKILL.md router with lazy-loaded references
+- **17 deep reference files** | **9 game templates** | **7 guided workflows**
+- `--!strict` Luau & modular `ModuleScript` Service-Controller architecture enforced by default
 - 3-mode MCP Studio integration (full/standard/offline)
 
 ## Architecture
 
-**Router + Reference Library** — lightweight SKILL.md dispatcher with lazy-loaded deep knowledge.
+**Router + Reference Library** — lightweight `SKILL.md` dispatcher enforcing mandatory `--!strict` Luau, modular `ModuleScript` Service-Controller architecture, server-authoritative Client-Server security, and 3-layer Data management, with lazy-loaded deep knowledge.
 
 ```
 roblox-game/
-├── SKILL.md                    # Router (121 lines, 18 routing paths)
-├── references/                 # 16 deep reference files
+├── SKILL.md                              # Router + non-negotiable engineering charter
+├── references/                           # 17 deep reference files
+│   ├── modular-service-architecture.md   # Mandatory --!strict, Signal bus, RemoteGateway, 3-layer data
 │   ├── luau-mastery.md
 │   ├── architecture-patterns.md
 │   ├── mcp-orchestration.md
@@ -31,23 +32,25 @@ roblox-game/
 │   ├── animation-vfx.md
 │   ├── multiplayer-networking.md
 │   ├── testing-patterns.md
-│   └── sharp-edges.md
-├── templates/                  # 7 game templates
-│   ├── game-scaffold.md        # Universal base (any genre)
-│   ├── genre-simulator.md      # Pet Simulator style
-│   ├── genre-tycoon.md         # Retail Tycoon style
-│   ├── genre-obby.md           # Tower of Hell style
-│   ├── genre-rpg.md            # Blox Fruits style
-│   ├── genre-horror.md         # Doors style
-│   └── genre-battle-royale.md  # Battle royale style
-└── workflows/                  # 7 guided workflows
-    ├── new-game.md             # Build a game from scratch
-    ├── debug-loop.md           # Iterative MCP debugging
-    ├── performance-audit.md    # Performance profiling
-    ├── security-audit.md       # Security review
-    ├── publish-checklist.md    # Pre-publish verification
-    ├── monetization-audit.md   # Revenue optimization
-    └── code-review.md          # Code quality review
+│   └── sharp-edges.md                    # 17 severity-rated critical gotchas
+├── templates/                            # 9 game templates
+│   ├── game-scaffold.md                  # Universal --!strict modular base (any genre)
+│   ├── genre-elimination-survival.md     # Round-based trials (Death Penalty / Ink Game / Simon Says)
+│   ├── genre-survival-expedition.md      # Co-op central-anchor survival/expedition (99 Nights / Drill)
+│   ├── genre-simulator.md                # Pet Simulator style
+│   ├── genre-tycoon.md                   # Retail Tycoon style
+│   ├── genre-obby.md                     # Tower of Hell style
+│   ├── genre-rpg.md                      # Blox Fruits style
+│   ├── genre-horror.md                   # Doors style
+│   └── genre-battle-royale.md            # Battle royale style
+└── workflows/                            # 7 guided workflows
+    ├── new-game.md
+    ├── debug-loop.md
+    ├── performance-audit.md
+    ├── security-audit.md
+    ├── publish-checklist.md
+    ├── monetization-audit.md
+    └── code-review.md
 ```
 
 ## Features
@@ -66,6 +69,8 @@ Auto-detects which server is available and adapts all workflows accordingly.
 
 Each template includes complete, production-ready Luau code for every core system:
 
+- **Elimination Survival** — 7-state Global FSM, RuleCommandEngine, Ragdoll/Execution FX, Spectator Sabotage, `RoundTrove` cleanup
+- **Survival / Expedition** — Co-op central-anchor loop (Campfire/Drill), fuel/vitals, Boss Walls, progression math, MemoryStore rejoin
 - **Simulator** — Collection, pet system (hatching + rarity), zones, upgrades, prestige/rebirth
 - **Tycoon** — Plot claiming, droppers/collectors, button pad purchasing, income, tiers
 - **Obby** — Checkpoints, 5 obstacle types, timer/speedrun, leaderboards
@@ -85,34 +90,37 @@ Each template includes complete, production-ready Luau code for every core syste
 
 ### Deep References
 
-16 reference files covering every aspect of Roblox development:
-- Luau language mastery with type system and OOP patterns
+17 reference files covering every aspect of Roblox development:
+- Modular service architecture (`--!strict`, `Init`/`Start`, `Signal` `EventBus`, `RemoteGateway`, 3-layer Data separation)
+- Luau language mastery with `--!strict` type system and OOP patterns
 - Game architecture (services, client-server, modules, frameworks)
-- Security hardening (never trust client, validation, rate limiting)
-- DataStore persistence (ProfileService, session locking, migration)
+- Security hardening (never trust client, validation, rate limiting, `SetNetworkOwner(nil)`, `DotProduct` LoS)
+- DataStore & MemoryStore persistence (ProfileService, session locking, migration, rejoin state)
 - And 12 more specialized topics
 
 ### Sharp Edges
 
-12 severity-rated gotchas that save you from disaster (Critical → Low):
-- DataStore data loss, client-side currency, ProcessReceipt bugs
-- Memory leaks, RemoteEvent flooding, BindToClose timeout
+17 severity-rated gotchas that save you from disaster (Critical → Low):
+- DataStore data loss, client-side currency, ProcessReceipt bugs, hidden map secret leaks (ESP)
+- Memory leaks, RemoteEvent flooding, BindToClose timeout, `tick()` clock desync & lag-switch abuse
+- Vehicle/trap network ownership exploits, StreamingEnabled desync, ephemeral run state separation
 - And 6 more common pitfalls with Luau code fixes
 
 ## Usage
 
-The skill is automatically invoked when you mention Roblox, Luau, game development, or any related keyword in Claude Code.
+The skill is automatically invoked when you mention Roblox, Luau, game development, or any related keyword.
 
 **Example prompts:**
+- "Build me a co-op survival game with campfire fuel and night raids"
 - "Build me a pet simulator with 3 zones"
-- "How do I save player data in Roblox?"
+- "How do I save player data and rejoin state in Roblox?"
 - "Review my game's security"
 - "Optimize this game for mobile"
 - "Add a shop system with GamePasses"
 
 ## Installation
 
-Already installed at `~/.claude/skills/roblox-game/`. The skill is detected automatically by Claude Code.
+Global skill location: `~/.gemini/config/skills/roblox-game/`.
 
 ## Design Documents
 

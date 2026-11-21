@@ -497,6 +497,30 @@ Study successful games deeply. Understand the principles behind the features. Th
 
 ---
 
+## 11. Co-op Survival & Expedition Heuristics (Golden 5 Minutes + Push Your Luck)
+
+For central-anchor survival/expedition games (*99 Nights in the Forest*, *Drill to Earth's Core* — see `templates/genre-survival-expedition.md`):
+
+1. **Golden 5 Minutes Onboarding (Zero Text Walls):** Guide players within 5 seconds via a glowing world beam/spatial indicator; grant a **Night-1 Grace Window** (no lethal stalker ambush on minute 1); guarantee the first tangible upgrade (Campfire Lv2 or Drill Power +1) within 180 seconds.
+2. **Dual-Purpose Resource Dilemma:** Give key drops (e.g., enemy corpses/scrap) two competing sinks — burn as **Anchor Fuel** to survive vs. sell/craft for **Coins/Upgrades**.
+3. **Point of No Return Tension:** Raise escape stakes at high-reward peaks (hide map compass/beacon if Fuel hits 0; lock teleporters & close a return barrier during Boss Walls).
+4. **Active Maintenance Threats:** Include base/anchor saboteurs (`Fuel Leech`, defense-disabling bombers) so AFK static defenses degrade without active team upkeep.
+5. **Player-Driven Pacing & Asymmetric Classes:** Offer risk-for-speed accelerators (Beds/Rescued Kids `DayMultiplier` up to `9x`) and specialized co-op roles (Fuel/Mechanic, Boss DPS/Executioner, Medic/Priest, Economy/Pirate) to fuel organic friend invites.
+6. **"One More Run" Meta Bridge:** Always grant partial meta currency (`Diamonds`/`Cores`) and visible class quest bar progress (`42/50 Bosses`) even on defeat, plus `MemoryStoreService` mid-run rejoin persistence.
+
+---
+
+## 12. Round-Based Elimination Tempo, Tension Curve & Viral Retention
+
+For round-based elimination trials (*Death Penalty*, *Ink Game*, *Simon Says* — see `templates/genre-elimination-survival.md`):
+
+1. **Zero-Friction Tempo:** Keep total dead time between active trials (`Evaluation` + `Cleanup` + `Briefing`) <= **10–14 seconds**; run 4–7 min matches (fast wheel trials) or 10–16 min matches (curated elimination ladder).
+2. **Post-Elimination Retention (0.5–1.5s):** Never trap defeated players on a static death screen — transition to `Spectating` within 1.5s, show live `AliveCount`, and offer lobby mini-obby or `SpectatorSabotage` interactions (with `GlobalSabotageCooldown` + `TargetImmunityWindow` anti-P2W guardrails).
+3. **Escalating Tension Curve (`tau`):** Shrink command windows exponentially `T(r) = max(T_min, T_base * exp(-k*(r-1)))`, raise trap probability `P_trap(r)`, and tween lighting/music speed/FOV dynamically via `tau = clamp(1 - AliveCount / InitialCount, 0, 1)`.
+4. **Viral Social Hooks & Near-Miss Feedback:** Keep eliminations readable in a shared arena (clippable mistakes + kill feed attribution), show concrete near-miss placement (`"2nd out of 24!"`, `"3 studs from finish"`), and showcase status via `WinStreak` auras, custom executions, and Power Rolls.
+
+---
+
 ## Quick Reference: Design Checklist
 
 Before launching or updating a Roblox game, verify:

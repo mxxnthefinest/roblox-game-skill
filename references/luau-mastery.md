@@ -275,9 +275,13 @@ print(math.deg(math.pi))        --> 180
 
 ---
 
-## Type System
+## Type System (`--!strict` Mandatory)
 
-Luau uses **gradual typing**: types are optional and can be added incrementally. The type checker runs at analysis time and does not affect runtime behavior.
+Luau supports gradual typing as a language feature, **but this skill enforces `--!strict` mode on every generated or refactored `.luau` file**:
+
+- Put `--!strict` on line 1 of every `Script`, `LocalScript`, and `ModuleScript`.
+- Annotate all function parameters, return types, state dictionaries, and `export type` contracts in `ReplicatedStorage/Shared/Types/`.
+- Pair static `--!strict` annotations with runtime guards (`typeof()`, NaN `v == v`, finite bounds) at every `RemoteEvent` boundary — static types do not stop malformed client payloads at runtime.
 
 ### Basic Type Annotations
 

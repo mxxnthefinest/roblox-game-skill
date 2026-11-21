@@ -38,37 +38,40 @@ Identify every RemoteEvent and RemoteFunction in the project to map the attack s
 
 For each RemoteEvent/RemoteFunction handler on the server, verify the following defenses are in place.
 
-### 2a. Type Checking
+### 2a. Type Checking & NaN Guards
 
-- Every argument received from the client must be type-checked before use.
-- Use `typeof()` or explicit `type()` checks.
+- Every argument received from the client MUST be runtime-checked before use (`--!strict` static types do NOT protect remote boundaries).
+- Use `typeof()`, NaN checks (`value == value`), finite bounds, and integer checks (`math.floor(v) == v`).
 - Reject the request entirely if any argument fails validation (do not attempt to coerce).
 
-```lua
+```luau
+--!strict
 -- GOOD
-RemoteEvent.OnServerEvent:Connect(function(player, itemId, quantity)
-    if typeof(itemId) ~= "string" then return end
-    if typeof(quantity) ~= "number" then return end
-    if quantity ~= math.floor(quantity) then return end -- must be integer
+RemoteEvent.OnServerEvent:Connect(function(player: Player, itemId: unknown, quantity: unknown)
+    if typeof(itemId) ~= "string" or #itemId == 0 or #itemId > 64 then return end
+    if typeof(quantity) ~= "number" or quantity ~= quantity then return end
+    if quantity < 1 or quantity > 99 or quantity ~= math.floor(quantity) then return end
     -- proceed
 end)
 ```
 
-### 2b. Range Validation
+### 2b. Range & Spatial Validation
 
 - Numeric values must be bounds-checked (e.g., quantity between 1 and 99).
 - String values must be length-checked and sanitized.
 - Enum-like values must be checked against a whitelist.
+- World interactions (mining, combat, flashlight stun, welding) must verify `(rootPos - targetPos).Magnitude <= range + tolerance` and `DotProduct`/Raycast LoS on the server.
 
-### 2c. Cooldowns
+### 2c. Cooldowns (`os.clock()`)
 
-- Verify that rate limiting or cooldown logic exists to prevent spam-firing.
+- Verify that rate limiting or cooldown logic exists to prevent spam-firing (use `os.clock()`, never legacy `tick()`).
 - Typical pattern: per-player timestamp table with minimum interval.
 
-```lua
-local lastFire = {}
-RemoteEvent.OnServerEvent:Connect(function(player, ...)
-    local now = tick()
+```luau
+--!strict
+local lastFire: { [Player]: number } = {}
+RemoteEvent.OnServerEvent:Connect(function(player: Player, ...)
+    local now = os.clock()
     if lastFire[player] and now - lastFire[player] < 0.5 then return end
     lastFire[player] = now
     -- proceed
@@ -94,6 +97,12 @@ Search for game logic on the client that should only exist on the server.
 - **Inventory operations**: Client adding items to its own inventory and syncing to the server.
 - **Position/teleport authority**: Client setting its own CFrame and the server trusting it without validation.
 - **Purchase completion**: Client telling the server a purchase succeeded without server-side MarketplaceService verification.
+- **Shared Vehicle / Trap Physics**: Moving team bases/vehicles, trapdoors, or moving blocks missing `SetNetworkOwner(nil)` or accepting unvalidated client `WeldConstraint` offsets.
+- **Client Motion / Reflex Trust**: Red-light or reflex checks trusting `Humanoid.MoveDirection`, unvalidated `Touched` finishes, `tick()`, or uncapped `GetNetworkPing()` (lag-switch abuse).
+- **Hidden Map Secret Leak (ESP)**: Glass Bridge / safe-tile truth tables exposed in `Attribute`s, distinct part names/properties, or `ReplicatedStorage` instead of `ServerScriptService`.
+- **Anti-P2W Sabotage Guardrails**: Spectator tampering lacking `AllowSabotage` (e.g., disabled in 1v1 Finale), `GlobalSabotageCooldown`, or `TargetImmunityWindow`.
+- **Item Duplication**: Inventory/sack swaps or drops lacking unique `InstanceUUID` locks.
+- **Streaming Desync**: Critical base/vehicle models missing `ModelStreamingMode = Atomic` or `Persistent` when `StreamingEnabled = true`.
 
 ### MCP Search Patterns
 
@@ -144,8 +153,9 @@ Verify that all server-side remote handlers have rate limiting.
 
 ### Additional Checks
 
-- **RemoteFunction abuse** — `OnServerInvoke` is synchronous and blocks the calling thread. An exploiter can spam-invoke to exhaust server threads. Prefer RemoteEvents where possible; if RemoteFunctions are used, they must have aggressive rate limiting.
+- **RemoteFunction abuse** — `RemoteFunction` MUST be strictly limited to Initial State Sync (`RF_InitialSync`); flag any gameplay action using `RemoteFunction` (and any `InvokeClient` call as Critical/High). `OnServerInvoke` is synchronous and can exhaust server threads if spammed without strict rate limiting.
 - **Payload size** — Large tables sent via remotes can be used for denial-of-service. Validate table size/depth.
+- **--!strict enforcement** — Flag untyped remote handlers missing `--!strict` or runtime NaN (`v == v`) guards.
 
 ---
 

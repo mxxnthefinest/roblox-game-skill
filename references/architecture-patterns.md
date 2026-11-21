@@ -331,9 +331,9 @@ DamageEvent.OnServerEvent:Connect(function(player, targetId, damage)
 end)
 ```
 
-### RemoteFunction (Sync, Two-Way / Request-Response)
+### RemoteFunction (Initial State Sync Only)
 
-Use when the caller needs a return value. **Only use `InvokeServer` (client calling server).** Avoid `InvokeClient` because if the client disconnects or errors, the server thread hangs.
+Use `RemoteFunction` **strictly for Initial State Sync** (`RF_InitialSync` when a client joins and requests its initial snapshot). For ALL gameplay actions, mutations, combat, crafting, or purchases, use `RemoteEvent` with server-side validation and rate limiting. **Never call `InvokeClient`** because if the client disconnects or errors, the server thread hangs indefinitely.
 
 ```lua
 -- CLIENT: request data from server
@@ -909,9 +909,11 @@ RemoteEvent.OnServerEvent:Connect(function(player, targetId, ...)
 end)
 ```
 
-### Use ModuleScripts Everywhere
+### Use ModuleScripts Everywhere (`--!strict` + `Init`/`Start`)
 
-Avoid putting game logic directly in Scripts or LocalScripts. Instead, keep Scripts/LocalScripts as thin bootstrappers that require and initialize ModuleScripts. This makes code reusable, testable, and organized.
+> **Mandatory Standard:** See `references/modular-service-architecture.md` for the complete 6-service Input/Process/Output blueprint, typed `Signal` `EventBus`, `RemoteGateway`, and 3-layer Data separation.
+
+Never put gameplay logic directly into `Script` or `LocalScript` files or monolithic God Scripts. Every `.luau` file MUST start with `--!strict`, keep `ServerMain.server.luau` and `ClientMain.client.luau` as thin bootstrappers, and split domain logic into single-responsibility `ModuleScript` Services/Controllers using two-phase `Init()` → `Start()` initialization (zero top-level yields, zero circular `require()`).
 
 ### Centralize Remote Definitions
 

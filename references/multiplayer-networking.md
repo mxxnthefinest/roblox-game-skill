@@ -1657,6 +1657,26 @@ Players.PlayerAdded:Connect(function(player)
 end)
 ```
 
+### Deterministic Server Clock & Hybrid Attribute Sync (Reflex Rounds)
+
+For round-based elimination and reflex games (Simon Says, Red Light/Green Light), synchronize clocks using `workspace:GetServerTimeNow()` (never `tick()` or `os.time()`), cap ping compensation at `0.35s` to prevent lag-switch abuse, replicate sticky states via `Attribute`s (auto-syncs late joiners), and clean up every round instance/connection with `RoundTrove:Clean()`:
+
+```luau
+--!strict
+local BASE_GRACE_SECONDS = 0.25
+local MAX_PING_COMPENSATION = 0.35
+
+local function getEffectiveCheckStartTime(player: Player, phaseServerTime: number): number
+	local oneWayLatency = math.clamp(player:GetNetworkPing(), 0, MAX_PING_COMPENSATION)
+	return phaseServerTime + BASE_GRACE_SECONDS + oneWayLatency
+end
+
+-- Sticky state sync via Attributes (zero polling, automatic late-join sync):
+workspace:SetAttribute("GameState", "ActiveRound")
+workspace:SetAttribute("PhaseDeadline", workspace:GetServerTimeNow() + 30)
+player:SetAttribute("MatchState", "Alive")
+```
+
 ### BindToClose for Server Shutdowns
 
 ```luau

@@ -50,9 +50,10 @@ An exploiter can fire this with any target name and any damage value, instantly 
 
 ### Production-Ready Validation Module
 
-Place this in `ServerScriptService`:
+Place this `--!strict` module in `ServerScriptService`:
 
 ```luau
+--!strict
 -- ServerScriptService/Modules/RemoteValidator.luau
 
 local RemoteValidator = {}
@@ -706,6 +707,58 @@ RunService.Heartbeat:Connect(function()
 end)
 ```
 
+### Vehicle / Moving Anchor Physics Hijack & Weld Exploits
+
+**What exploiters do:** When a player sits in a `VehicleSeat` or touches an unanchored vehicle/anchor model, Roblox's automatic network ownership can transfer physics ownership of the vehicle to that client, letting them speed-hack, fly, or teleport the shared team base/drill, or fire arbitrary weld positions.
+
+**Defense:** Lock physics authority to the server (`PrimaryPart:SetNetworkOwner(nil)`) on creation and whenever seat `Occupant` changes, and validate all welded attachments (`WeldConstraint`, distance check, server-computed `CFrame`) on the server:
+
+```luau
+--!strict
+local function lockAnchorOwnership(vehicle: Model)
+	vehicle.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	if vehicle.PrimaryPart then
+		vehicle.PrimaryPart:SetNetworkOwner(nil)
+	end
+	local seat = vehicle:FindFirstChildWhichIsA("VehicleSeat", true)
+	if seat then
+		seat:GetPropertyChangedSignal("Occupant"):Connect(function()
+			if vehicle.PrimaryPart then
+				vehicle.PrimaryPart:SetNetworkOwner(nil)
+			end
+		end)
+	end
+end
+```
+
+### Flashlight / Vision Cone & Line-of-Sight Checks
+
+**What exploiters do:** Send stun/hit events for enemies behind walls or across the map.
+
+**Defense:** Verify range, `DotProduct` cone alignment, and `workspace:Raycast` line-of-sight on the server:
+
+```luau
+--!strict
+local function isInsideFlashlightCone(originCF: CFrame, targetPos: Vector3, maxRange: number, minDot: number): boolean
+	local toTarget = targetPos - originCF.Position
+	local dist = toTarget.Magnitude
+	if dist <= 0 or dist > maxRange then
+		return false
+	end
+	local dir = toTarget.Unit
+	return originCF.LookVector:Dot(dir) >= minDot -- e.g. 0.75 (~41 deg half-angle)
+end
+```
+
+### Red-Light / Motion-Freeze & Hidden Map Truth Tables (Anti-ESP / Anti-Lag-Switch)
+
+**What exploiters do:** Spoof `Humanoid.MoveDirection = Vector3.zero`, use lag-switches during Red Light, or inspect replicated `Attribute`s/part properties on Glass Bridge tiles (ESP).
+
+**Defense:**
+1. Measure `(CurrentPos - AnchorPos).Magnitude` and `LookVector:Dot(AnchorLook)` directly on the server after `workspace:GetServerTimeNow() >= RedLightTime + 0.25 + math.clamp(player:GetNetworkPing(), 0, 0.35)`.
+2. Check speed/teleports every `0.25s`: `MaxDist = (WalkSpeed * dt) + 4`; rollback via `char:PivotTo(LastValidCFrame)` on 2 consecutive strikes.
+3. Keep secret panel/trap mappings (`local safePanels: { [BasePart]: boolean }`) strictly in `ServerScriptService` memory with identical visual properties on all client panels, and call `Part:SetNetworkOwner(nil)` on all traps and moving blocks.
+
 ---
 
 ## 6. Data Exposure Prevention
@@ -1119,3 +1172,8 @@ Before shipping any remote-connected feature, verify:
 - [ ] Rate limiting is in place
 - [ ] Suspicious activity is logged with player identification
 - [ ] Extra arguments beyond the schema are rejected
+- [ ] All modules/handlers use `--!strict` with `os.clock()` rate-limiting and NaN/Inf guards
+- [ ] `RemoteFunction` is restricted to Initial State Sync only (all gameplay actions use `RemoteEvent`)
+- [ ] Shared vehicles/anchors lock physics via `PrimaryPart:SetNetworkOwner(nil)` and server-validated `WeldConstraint`s
+- [ ] Inventory/sack items use unique `InstanceUUID` + lock flags to block duplication races
+- [ ] Critical models use `ModelStreamingMode.Atomic` / `Persistent` when `StreamingEnabled = true`
