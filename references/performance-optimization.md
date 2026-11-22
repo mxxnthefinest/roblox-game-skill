@@ -309,11 +309,12 @@ RunService.Heartbeat:Connect(function()
 end)
 ```
 
-### Compress Large Data
+### Compress Large Data & Binary `buffer` Streaming
 
 - Strip unnecessary keys before sending.
 - Use short key names (`hp` instead of `hitPoints`).
 - Consider delta compression: send only values that changed since the last update.
+- For high-frequency `CFrame` streams (e.g., 15–20 Hz shared camera or drone views), pack into an **18-byte `buffer`** (`3x f32` position + `3x i16` quantized Euler angles) over `UnreliableRemoteEvent` instead of 48-byte `CFrame` userdata (`~360 B/s` vs `2.9 KB/s`).
 
 ### Reduce Replication
 

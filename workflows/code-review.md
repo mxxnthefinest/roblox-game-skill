@@ -121,6 +121,7 @@ Evaluate the overall code architecture for maintainability and scalability.
 - Are server-internal transitions decoupled via typed `Signal` / `BindableEvent` (`EventBus`) rather than reaching into another service's private tables?
 - Are ephemeral run state (`RunSessionState`) and persistent player profiles (`DataStore` / `ProfileService`) cleanly separated?
 - For round-based games: are maps, connections, and `task` threads cleaned deterministically via `RoundTrove:Clean()` between rounds, and do traps/moving parts lock `SetNetworkOwner(nil)`?
+- For co-op physics / camera-sharing games: do live tethered characters retain client network ownership guarded by a `PostSimulation` velocity watchdog (rather than lagging with `SetNetworkOwner(nil)`), and do high-frequency `CFrame` streams use `UnreliableRemoteEvent` + `buffer` at 15–20 Hz instead of 60 Hz `RemoteEvent` spam?
 
 ```luau
 --!strict

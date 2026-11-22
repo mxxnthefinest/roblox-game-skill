@@ -4,7 +4,7 @@ The ultimate Roblox game development Claude Code skill. A self-contained, full-l
 
 ## Stats
 
-- **17 deep reference files** | **9 game templates** | **7 guided workflows**
+- **17 deep reference files** | **10 game templates** | **7 guided workflows**
 - `--!strict` Luau & modular `ModuleScript` Service-Controller architecture enforced by default
 - 3-mode MCP Studio integration (full/standard/offline)
 
@@ -32,9 +32,10 @@ roblox-game/
 │   ├── animation-vfx.md
 │   ├── multiplayer-networking.md
 │   ├── testing-patterns.md
-│   └── sharp-edges.md                    # 17 severity-rated critical gotchas
-├── templates/                            # 9 game templates
+│   └── sharp-edges.md                    # 19 severity-rated critical gotchas
+├── templates/                            # 10 game templates
 │   ├── game-scaffold.md                  # Universal --!strict modular base (any genre)
+│   ├── genre-coop-physics-obby.md        # 2-player tethered/carried/asymmetric physics obby
 │   ├── genre-elimination-survival.md     # Round-based trials (Death Penalty / Ink Game / Simon Says)
 │   ├── genre-survival-expedition.md      # Co-op central-anchor survival/expedition (99 Nights / Drill)
 │   ├── genre-simulator.md                # Pet Simulator style
@@ -69,6 +70,7 @@ Auto-detects which server is available and adapts all workflows accordingly.
 
 Each template includes complete, production-ready Luau code for every core system:
 
+- **Co-op Physics Obby** — `DuoManager`, `PhysicsTetherService` (`PostSimulation` velocity watchdog), 18-byte `CFrameBuffer` + `UnreliableRemoteEvent` camera sync, atomic checkpoint reset
 - **Elimination Survival** — 7-state Global FSM, RuleCommandEngine, Ragdoll/Execution FX, Spectator Sabotage, `RoundTrove` cleanup
 - **Survival / Expedition** — Co-op central-anchor loop (Campfire/Drill), fuel/vitals, Boss Walls, progression math, MemoryStore rejoin
 - **Simulator** — Collection, pet system (hatching + rarity), zones, upgrades, prestige/rebirth
@@ -100,10 +102,10 @@ Each template includes complete, production-ready Luau code for every core syste
 
 ### Sharp Edges
 
-17 severity-rated gotchas that save you from disaster (Critical → Low):
+19 severity-rated gotchas that save you from disaster (Critical → Low):
 - DataStore data loss, client-side currency, ProcessReceipt bugs, hidden map secret leaks (ESP)
 - Memory leaks, RemoteEvent flooding, BindToClose timeout, `tick()` clock desync & lag-switch abuse
-- Vehicle/trap network ownership exploits, StreamingEnabled desync, ephemeral run state separation
+- Vehicle/carried-object ownership, tethered velocity flings, StreamingEnabled desync, 60 Hz `CFrame` spam, constraint reset flings
 - And 6 more common pitfalls with Luau code fixes
 
 ## Usage

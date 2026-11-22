@@ -20,6 +20,7 @@ Scan the user's message for these keywords (case-insensitive). Match the first g
 
 | Genre | Keywords |
 |---|---|
+| Co-op Physics Obby | 2 player obby, two player, chained, carry the glass, be my camera, throw me, gecko duo, draw together, tether, duo obby |
 | Elimination Survival | elimination, death penalty, ink game, squid game, simon says, red light green light, glass bridge, trial, last survivor |
 | Survival / Expedition | survival, nights, campfire, drill, core, forest, dig, underground, co-op survival, expedition, fuel |
 | Simulator | simulator, sim, clicking, rebirth, prestige, idle, grind, farm |
@@ -43,15 +44,16 @@ Present a multiple-choice prompt:
 
 > What type of game are you building?
 >
-> 1. **Elimination Survival** -- Round-based trials, Simon Says, Red Light/Green Light, Glass Bridge, Spectator Sabotage, Finale Showdown
-> 2. **Survival / Expedition** -- Co-op central anchor (campfire/drill), fuel loop, night/wave defense, layered depth/map
-> 3. **Simulator** -- Click, collect, upgrade, rebirth loops
-> 4. **Tycoon** -- Build a base/factory, earn currency, expand
-> 5. **Obby** -- Obstacle course with stages/checkpoints
-> 6. **RPG** -- Quests, combat, leveling, story-driven adventure
-> 7. **Horror** -- Atmospheric scares, survival, escape scenarios
-> 8. **Battle Royale** -- PvP combat, last player/team standing
-> 9. **Custom** -- I have something unique in mind (describe it)
+> 1. **Co-op Physics Obby** -- 2-player chained/tethered obby, fragile carried glass, asymmetric camera/draw/throw mechanics
+> 2. **Elimination Survival** -- Round-based trials, Simon Says, Red Light/Green Light, Glass Bridge, Spectator Sabotage, Finale Showdown
+> 3. **Survival / Expedition** -- Co-op central anchor (campfire/drill), fuel loop, night/wave defense, layered depth/map
+> 4. **Simulator** -- Click, collect, upgrade, rebirth loops
+> 5. **Tycoon** -- Build a base/factory, earn currency, expand
+> 6. **Obby** -- Obstacle course with stages/checkpoints
+> 7. **RPG** -- Quests, combat, leveling, story-driven adventure
+> 8. **Horror** -- Atmospheric scares, survival, escape scenarios
+> 9. **Battle Royale** -- PvP combat, last player/team standing
+> 10. **Custom** -- I have something unique in mind (describe it)
 
 If the user selects **Custom**, skip genre-specific templates in Step 2 and use only the universal scaffold. Gather a short description of their concept to inform architecture decisions.
 
@@ -75,6 +77,7 @@ Read the genre template based on the detected type:
 
 | Genre | Template File |
 |---|---|
+| Co-op Physics Obby | `templates/genre-coop-physics-obby.md` |
 | Elimination Survival | `templates/genre-elimination-survival.md` |
 | Survival / Expedition | `templates/genre-survival-expedition.md` |
 | Simulator | `templates/genre-simulator.md` |
@@ -403,7 +406,8 @@ Every generated system MUST enforce these rules (from `SKILL.md` and `references
 - **Deterministic server time & hidden secrets** -- use `workspace:GetServerTimeNow()` + capped `GetNetworkPing()` (`<= 0.35s`) for round/reflex timing; keep secret panel/trap tables strictly in `ServerScriptService`
 - **Strict `RemoteFunction` limit** -- restrict `RemoteFunction` to Initial State Sync only (`RF_InitialSync`); all gameplay actions use `RemoteEvent` (plus `Attribute`s for sticky late-joiner states)
 - **3-layer data separation** -- `ProfileService`/`ProfileStore` for persistent profiles (`pcall` + parallel `BindToClose`), `MemoryStoreService` for ephemeral `RunSessionState` rejoin checkpoints, `ServerStorage/Modules` for hidden drop/pricing configs
-- **Physics & streaming safety** -- `SetNetworkOwner(nil)` + server `WeldConstraint` checks on shared vehicles, traps, and moving platforms; `ModelStreamingMode = Atomic/Persistent` under `StreamingEnabled = true`
+- **Physics & streaming safety** -- `SetNetworkOwner(nil)` + server `WeldConstraint` checks on shared vehicles, carried assemblies, traps, and moving platforms (**never** on live player characters — guard tethered characters with a `PostSimulation` velocity watchdog & `MaxForce` cap); `ModelStreamingMode = Atomic/Persistent` under `StreamingEnabled = true`
+- **Bandwidth & reset safety** -- use `UnreliableRemoteEvent` + 18-byte `buffer` @ 15–20 Hz for camera/transform streams; disable constraints and zero `AssemblyLinearVelocity`/`Angular` before `PivotTo()` + `PostSimulation:Wait()` on checkpoint respawns
 - **Use `task` library & `Trove`** -- never deprecated `wait()`/`spawn()`/`delay()`; clean per-player connections on `PlayerRemoving` and per-round maps/threads via `RoundTrove:Clean()`
 
 ---

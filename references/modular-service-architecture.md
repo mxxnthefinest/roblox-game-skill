@@ -786,3 +786,20 @@ For trial/elimination games (*Death Penalty*, *Ink Game*, *Simon Says* — see `
 4. **Zero Client Secrets & Server Motion Measurement:**
    - Never expose hidden panel/trap truth tables (e.g., Glass Bridge safe tiles) in `ReplicatedStorage` or `Attribute`s — hold `{ [BasePart]: boolean }` strictly in `ServerScriptService`.
    - Measure movement/freeze rules directly from `HumanoidRootPart.Position` & `LookVector` deltas on the server (`Humanoid.MoveDirection` from clients is ignored); lock moving traps/platforms with `Part:SetNetworkOwner(nil)`.
+
+---
+
+## 8. Co-op Physics Constraints, Velocity Watchdog & Binary `buffer` Streaming
+
+For coupled 2-player physics & asymmetric obbies (*Chained*, *Carry the Glass Together!*, *Be My Camera*, *Throw Me* — see `templates/genre-coop-physics-obby.md`):
+
+1. **Split-Ownership Physics Rule:**
+   - **Never** call `SetNetworkOwner(nil)` on live player characters (causes unbearable input lag). Keep each client owning their `HumanoidRootPart`, cap `Constraint.MaxForce` (e.g., `2.5 * m * g`), and enforce a `RunService.PostSimulation` server velocity watchdog clamping `||v||` and rejecting `NaN`/`Inf`.
+   - **Do** call `SetNetworkOwner(nil)` on shared carried assemblies (`GlassPane`, vehicles, traps) for deterministic shatter/impact checks (`DeltaV = (v_t - v_{t-dt}).Magnitude`).
+2. **Atomic Checkpoint Reset Sequence:**
+   - Set `session.IsResetting = true`, disable all `ActiveConstraints`, zero `AssemblyLinearVelocity` and `AssemblyAngularVelocity` on every part, execute `Model:PivotTo()`, yield 1 physics step (`RunService.PostSimulation:Wait()`), then re-enable constraints.
+3. **18-Byte `buffer` + `UnreliableRemoteEvent` Camera/Transform Streaming:**
+   - Pack transform as `3x f32` (12 bytes) + `3x i16` quantized Euler orientation (6 bytes) = **18 bytes** at **15–20 Hz** (`< 0.4 KB/s` per duo), interpolate client-side via `alpha = 1 - math.exp(-lambda * dt)` in `BindToRenderStep`, and call `Player:RequestStreamAroundAsync(pos)` if `StreamingEnabled = true`.
+4. **Pooled Ink/Draw Segments & Targeted Purchase Fallback:**
+   - Validate client-drawn segments on the server (`length <= 12` studs, `InkBudget`, max 10 Hz) using a pre-allocated `Part` Object Pool with TTL.
+   - In `ProcessReceipt` for targeted sabotages, grant a reusable inventory token if the target disconnected mid-checkout so buyers never lose Robux.

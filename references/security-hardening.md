@@ -759,6 +759,15 @@ end
 2. Check speed/teleports every `0.25s`: `MaxDist = (WalkSpeed * dt) + 4`; rollback via `char:PivotTo(LastValidCFrame)` on 2 consecutive strikes.
 3. Keep secret panel/trap mappings (`local safePanels: { [BasePart]: boolean }`) strictly in `ServerScriptService` memory with identical visual properties on all client panels, and call `Part:SetNetworkOwner(nil)` on all traps and moving blocks.
 
+### Tethered Duo Characters & Client Velocity Watchdog
+
+**What exploiters do:** On chained/tethered characters (where live players retain network ownership of their own `HumanoidRootPart`), an exploiter sets `AssemblyLinearVelocity = Vector3.new(0, 1e6, 0)` to fling their partner into the void, or sends oversized drawn-platform segments (`Draw Together`).
+
+**Defense:**
+1. **Never** set `SetNetworkOwner(nil)` on live characters (ruins responsiveness); keep `SetNetworkOwner(nil)` ONLY on shared carried assemblies (`GlassPane`), vehicles, and traps.
+2. Run a `RunService.PostSimulation` watchdog across active duos: reject `NaN`/`Inf` positions or velocities, clamp `AssemblyLinearVelocity` magnitude (`<= 120 studs/s` outside an authorized launch window), and cap `Constraint.MaxForce`.
+3. Validate client-drawn strokes server-side (`length <= 12 studs`, bounds, `InkBudget`, `<= 10 Hz`) before leasing pooled `Part`s.
+
 ---
 
 ## 6. Data Exposure Prevention

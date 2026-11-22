@@ -97,7 +97,8 @@ Search for game logic on the client that should only exist on the server.
 - **Inventory operations**: Client adding items to its own inventory and syncing to the server.
 - **Position/teleport authority**: Client setting its own CFrame and the server trusting it without validation.
 - **Purchase completion**: Client telling the server a purchase succeeded without server-side MarketplaceService verification.
-- **Shared Vehicle / Trap Physics**: Moving team bases/vehicles, trapdoors, or moving blocks missing `SetNetworkOwner(nil)` or accepting unvalidated client `WeldConstraint` offsets.
+- **Shared Vehicle / Carried Assembly / Trap Physics**: Moving team bases/vehicles, carried fragile objects (`GlassPane`), trapdoors, or moving blocks missing `SetNetworkOwner(nil)`, OR live tethered characters mistakenly given `SetNetworkOwner(nil)` without a `PostSimulation` velocity/NaN watchdog (`||v||` clamp & `Constraint.MaxForce` cap).
+- **Targeted `ProcessReceipt` Handling**: Monetized sabotages missing idempotency ledgers, `SabotageImmunity` windows, or fallback tokens when the target disconnects mid-checkout.
 - **Client Motion / Reflex Trust**: Red-light or reflex checks trusting `Humanoid.MoveDirection`, unvalidated `Touched` finishes, `tick()`, or uncapped `GetNetworkPing()` (lag-switch abuse).
 - **Hidden Map Secret Leak (ESP)**: Glass Bridge / safe-tile truth tables exposed in `Attribute`s, distinct part names/properties, or `ReplicatedStorage` instead of `ServerScriptService`.
 - **Anti-P2W Sabotage Guardrails**: Spectator tampering lacking `AllowSabotage` (e.g., disabled in 1v1 Finale), `GlobalSabotageCooldown`, or `TargetImmunityWindow`.

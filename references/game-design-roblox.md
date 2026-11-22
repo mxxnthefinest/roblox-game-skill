@@ -521,6 +521,17 @@ For round-based elimination trials (*Death Penalty*, *Ink Game*, *Simon Says* �
 
 ---
 
+## 13. 2-Player Co-op Physics & Asymmetric Obby Hooks
+
+For coupled 2-player physics & asymmetric teamwork obbies (*Chained*, *Carry the Glass Together!*, *Be My Camera*, *Throw Me* — see `templates/genre-coop-physics-obby.md`):
+
+1. **Productive Friction & Comedic Failure (1.2–2.0s):** Coupling partner state (`RopeConstraint`, fragile carried glass, shared camera) forces vocal communication and externalizes blame onto hilarious slapstick reactions before resetting atomically in `< 2s`.
+2. **Level Design Sightline & Recovery Rules:** Keep checkpoint spacing at **30–60s** (`<= 90s` max), always show the next checkpoint beacon (critical for *Be My Camera*), and place lower recovery ledges under Act II+ paths to turn slips into 5-second rescues.
+3. **Zero-Text Metaphor Onboarding:** Communicate rules in `< 2s` visually (glowing chain = stay close; translucent glass = don't slam; blindfold/drone icon = guide partner).
+4. **Algorithmic Co-Play Retention:** Save `PartnerCheckpoints` per friend (`<= 20` cached partners) to anchor tomorrow's return session, add `SocialService:PromptGameInvite()`, and pair low-cost Sabotage DevProducts with `SabotageImmunity` + inventory fallback tokens to spark retaliatory spending without softlocks.
+
+---
+
 ## Quick Reference: Design Checklist
 
 Before launching or updating a Roblox game, verify:

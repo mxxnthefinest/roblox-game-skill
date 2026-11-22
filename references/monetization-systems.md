@@ -169,6 +169,7 @@ Developer Products are **consumable/repeatable purchases**. Players can buy them
 - Return `PurchaseGranted` ONLY after successfully persisting the granted item (DataStore save confirmed).
 - If DataStore save fails, return `NotProcessedYet` so Roblox retries.
 - Always handle the case where the player has left the game before ProcessReceipt fires.
+- For **targeted social/sabotage products** (e.g., ragdoll/fling a friend), if the target player leaves mid-checkout, grant an equivalent inventory token (e.g., "Sabotage Token") to the buyer and return `PurchaseGranted` so Robux are never wasted or left permanently retrying.
 
 ### Complete Developer Product System (Server Script)
 

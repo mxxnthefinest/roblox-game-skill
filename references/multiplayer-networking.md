@@ -1677,6 +1677,14 @@ workspace:SetAttribute("PhaseDeadline", workspace:GetServerTimeNow() + 30)
 player:SetAttribute("MatchState", "Alive")
 ```
 
+### High-Frequency Camera / Transform Streaming (`UnreliableRemoteEvent` + 18-Byte `buffer`)
+
+Never stream 48-byte `CFrame`s at 60 Hz over standard `RemoteEvent`s. For asymmetric camera sharing (*Be My Camera*) or smooth drone replication:
+
+- Use **`UnreliableRemoteEvent`** throttled to **15–20 Hz** (`< 0.4 KB/s` per duo).
+- Pack position (`3x f32` = 12 bytes) + quantized Pitch/Yaw/Roll (`3x i16` = 6 bytes) into an **18-byte `buffer`** (`buffer.create(18)`).
+- Interpolate on the receiving client inside `RunService:BindToRenderStep` with `alpha = 1 - math.exp(-lambda * dt)` (`lambda` in `[12, 18]`), and call `player:RequestStreamAroundAsync(camPos)` periodically when `Workspace.StreamingEnabled = true`.
+
 ### BindToClose for Server Shutdowns
 
 ```luau

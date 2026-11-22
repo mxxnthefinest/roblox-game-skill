@@ -32,6 +32,8 @@
 | SE-15 | Medium   | Ephemeral Run State Mixed into DataStore   |
 | SE-16 | High     | `tick()` Clock Desync & Lag-Switch Abuse   |
 | SE-17 | Critical | Hidden Map Secrets Leaked on Client (ESP)  |
+| SE-18 | Medium   | 60 Hz `CFrame` Replication Bandwidth Spam  |
+| SE-19 | Medium   | Constraint Teleport Fling on Respawn       |
 
 ---
 
@@ -1212,7 +1214,7 @@ Roblox automatically grants physics network ownership of unanchored parts or `Ve
 
 ### Solution
 
-Lock physics authority to the server with `PrimaryPart:SetNetworkOwner(nil)` on spawn and whenever `VehicleSeat.Occupant` changes, and validate all `WeldConstraint` requests server-side (`--!strict`).
+Lock physics authority to the server with `PrimaryPart:SetNetworkOwner(nil)` on vehicles, traps, and shared carried objects (`GlassPane`), and validate `WeldConstraint`s server-side (`--!strict`). **Never** call `SetNetworkOwner(nil)` on live player characters (even when tethered together)—keep client ownership on characters, cap `Constraint.MaxForce`, and enforce a `RunService.PostSimulation` server velocity/NaN watchdog instead.
 
 ```luau
 --!strict
@@ -1287,20 +1289,44 @@ Keep all client-facing parts visually and structurally identical, store secret t
 
 ---
 
+## SE-18 | Medium | 60 Hz `CFrame` Replication Bandwidth Spam
+
+### Description
+
+Streaming raw 48-byte `CFrame` values every `RenderStepped` frame (60 Hz) over standard reliable `RemoteEvent`s quickly saturates Roblox's per-client replication budget (~50 KB/s) and causes TCP-like head-of-line lag spikes.
+
+### Solution
+
+Use **`UnreliableRemoteEvent`** throttled to **15–20 Hz**, pack transforms into an **18-byte `buffer`** (`3x f32` position + `3x i16` quantized Euler orientation), smooth client-side with `Lerp(target, 1 - math.exp(-lambda * dt))`, and call `player:RequestStreamAroundAsync(pos)` if `StreamingEnabled = true`.
+
+---
+
+## SE-19 | Medium | Constraint Teleport Fling on Checkpoint Respawn
+
+### Description
+
+Calling `PivotTo()` on two tethered players or a carried object while `RopeConstraint`/`RodConstraint` instances are still enabled—or before zeroing `AssemblyLinearVelocity`—creates extreme constraint tension that catapults both players into the void and recursively triggers death zones.
+
+### Solution
+
+Wrap resets with `session.IsResetting = true`: disable `ActiveConstraints`, zero `AssemblyLinearVelocity` and `AssemblyAngularVelocity` on every `BasePart`, call `Model:PivotTo()`, wait 1 physics step (`RunService.PostSimulation:Wait()`), then re-enable constraints.
+
+---
+
 ## Quick Reference: Severity at a Glance
 
 ```
 CRITICAL (fix before shipping):
   SE-1  DataStore session locking        → Use ProfileService
   SE-2  Client-side currency             → Server-authoritative only
-  SE-3  ProcessReceipt order             → Grant THEN PurchaseGranted
+  SE-3  ProcessReceipt order             → Grant (or token fallback) THEN PurchaseGranted
   SE-17 Hidden map secrets leaked (ESP)  → ServerScriptService truth tables only
 
 HIGH (fix in current sprint):
   SE-4  Undisconnected events            → Trove/Maid pattern (RoundTrove per round)
   SE-5  RemoteEvent flooding             → Per-player rate limiter (os.clock)
   SE-6  BindToClose 30s timeout          → Parallel saves with task.spawn
-  SE-13 Vehicle/trap network ownership   → SetNetworkOwner(nil)
+  SE-13 Vehicle/carried/tether physics   → SetNetworkOwner(nil) on objects + PostSimulation watchdog on players
   SE-16 Clock desync & lag-switch abuse  → workspace:GetServerTimeNow() + 0.35s ping cap
 
 MEDIUM (fix before scale):
@@ -1310,6 +1336,8 @@ MEDIUM (fix before scale):
   SE-11 Infinite yield WaitForChild      → Always pass timeout parameter
   SE-14 Streaming critical anchors       → ModelStreamingMode.Persistent/Atomic
   SE-15 Ephemeral vs Persistent state    → Separate RunSessionState (MemoryStore)
+  SE-18 60 Hz CFrame remote spam         → UnreliableRemoteEvent + 18-byte buffer @ 15-20 Hz
+  SE-19 Constraint reset fling           → Disable constraints -> zero velocities -> PivotTo -> PostSimulation:Wait()
 
 LOW (fix when convenient):
   SE-10 Deprecated wait/spawn/delay      → task.wait/spawn/delay

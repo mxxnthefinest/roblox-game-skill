@@ -4,8 +4,8 @@ description: >
   Expert Roblox game development companion — enforces --!strict Luau, modular
   ModuleScript Service-Controller architecture, server-authoritative Client-Server
   security, 3-layer DataStore/MemoryStore management, Roblox Studio MCP integration,
-  elimination-survival, survival/expedition, simulator, tycoon, obby, RPG, horror,
-  battle royale, performance.
+  elimination-survival, co-op physics obby, survival/expedition, simulator, tycoon,
+  obby, RPG, horror, battle royale, performance.
 user-invocable: true
 ---
 
@@ -56,8 +56,8 @@ Apply these four non-negotiable engineering rules automatically on EVERY task �
    - Centralize remotes under `ReplicatedStorage/Remotes` (`RE_*`) via a single `RemoteGateway` enforcing per-player `os.clock()` rate limiting, cooldowns, range checks (`<= Range + 4`), `DotProduct`/Raycast LoS checks, and unique `InstanceUUID` anti-duplication locks.
    - Use **`workspace:GetServerTimeNow()`** + capped `player:GetNetworkPing()` (`<= 0.35s`) for round clocks and reflex freeze windows (never `tick()`). Measure movement/freeze violations from server `HumanoidRootPart` deltas — never trust client `MoveDirection`.
    - Restrict `RemoteFunction` **strictly** to Initial State Sync (`RF_InitialSync`); all gameplay mutations MUST use `RemoteEvent`, and `InvokeClient` is forbidden.
-   - Replicate sticky match/player states via `Instance:SetAttribute` (`GameState`, `AliveCount`, `MatchState`) and high-frequency deltas/FX via throttled `RE_StateSnapshot` (5 Hz) and proximity-scoped `RE_WorldFeedback` (~250 studs).
-   - Keep hidden map/trial truth tables (e.g., Glass Bridge safe panels) strictly in `ServerScriptService` memory (zero client attributes/hints). Lock physics for shared vehicles, moving traps, and platforms via `SetNetworkOwner(nil)` and validate `WeldConstraint`s server-side.
+   - Replicate sticky match/player states via `Instance:SetAttribute` (`GameState`, `AliveCount`, `MatchState`) and high-frequency deltas/FX via throttled `RE_StateSnapshot` (5 Hz) and proximity-scoped `RE_WorldFeedback` (~250 studs). For real-time camera/transform streaming (15–20 Hz), use `UnreliableRemoteEvent` + compact `buffer` binary packing (18 bytes) and `RequestStreamAroundAsync` under streaming.
+   - Keep hidden map/trial truth tables (e.g., Glass Bridge safe panels) strictly in `ServerScriptService` memory (zero client attributes/hints). Lock physics via `SetNetworkOwner(nil)` on shared vehicles, carried assemblies (e.g., `GlassPane`), moving traps, and platforms — **never** call `SetNetworkOwner(nil)` on live player characters (use client ownership + `RunService.PostSimulation` velocity/NaN watchdog & `Constraint.MaxForce` caps instead).
    - When `Workspace.StreamingEnabled = true`, set `ModelStreamingMode = Enum.ModelStreamingMode.Atomic` or `Persistent` on critical bases, vehicles, and anchors.
 
 4. **Mandatory 3-Layer Data Separation:**
@@ -74,6 +74,7 @@ Match user intent and load the corresponding files:
 | User Intent | Load |
 |---|---|
 | Modular services / Signal bus / refactor spaghetti | `references/modular-service-architecture.md` + `references/architecture-patterns.md` |
+| Build 2-player co-op physics / tethered / asymmetric obby | `workflows/new-game.md` + `templates/genre-coop-physics-obby.md` + `templates/game-scaffold.md` |
 | Build elimination trial / Simon Says / Death Penalty / Ink Game | `workflows/new-game.md` + `templates/genre-elimination-survival.md` + `templates/game-scaffold.md` |
 | Build survival / expedition / anchor co-op game | `workflows/new-game.md` + `templates/genre-survival-expedition.md` + `templates/game-scaffold.md` |
 | Build a game (simulator/tycoon/RPG/obby/horror/BR) | `workflows/new-game.md` + `templates/genre-{type}.md` + `templates/game-scaffold.md` |
@@ -120,17 +121,17 @@ If intent is ambiguous, ask one clarifying question, then route.
 
 ## Top Sharp Edges
 
-Always enforce these across every task (`references/sharp-edges.md` has all 17 entries):
+Always enforce these across every task (`references/sharp-edges.md` has all 19 entries):
 
 | ID | Severity | Issue | Fix |
 |---|---|---|---|
 | SE-1 | CRITICAL | DataStore loss from missing session locking | Use `ProfileService`/`ProfileStore` (`Reconcile` + `AddUserId`). Never raw `SetAsync`. |
 | SE-2 | CRITICAL | Client-side currency / price manipulation | Server computes all rewards/prices; client is display-only. |
-| SE-3 | CRITICAL | `ProcessReceipt` duplicate/lost purchases | Check idempotency → grant & record → return `PurchaseGranted` (else `NotProcessedYet`). |
+| SE-3 | CRITICAL | `ProcessReceipt` duplicate/lost purchases | Check idempotency → grant (or token fallback) → return `PurchaseGranted`. |
 | SE-4 | HIGH | Memory leaks from undisconnected events | Track every `:Connect()` and instance in `Trove`/`Maid` (`RoundTrove` per round). |
 | SE-5 | HIGH | RemoteEvent flooding / exploitation | Centralize in `RemoteGateway` with `os.clock()` per-player rate limits & runtime guards. |
-| SE-13 | HIGH | Vehicle / trap / moving anchor physics hijack | Call `SetNetworkOwner(nil)` and validate `WeldConstraint`s on the server. |
-| SE-14 | MEDIUM | Critical bases/vehicles vanish under Streaming | Set `ModelStreamingMode = Enum.ModelStreamingMode.Atomic` or `Persistent`. |
-| SE-15 | MEDIUM | Ephemeral run state stored in DataStore | Keep `RunSessionState` out of DataStore; use `MemoryStoreService` for rejoin recovery. |
+| SE-13 | HIGH | Vehicle/carried-object hijack & tether flings | `SetNetworkOwner(nil)` on vehicles/traps/carried glass; `PostSimulation` velocity watchdog on live players. |
 | SE-16 | HIGH | `tick()` clock desync & lag-switch abuse | Use `workspace:GetServerTimeNow()` + `math.clamp(player:GetNetworkPing(), 0, 0.35)`. |
 | SE-17 | CRITICAL | Hidden map secrets leaked on client (ESP) | Store secret truth tables (e.g., Glass Bridge) strictly in `ServerScriptService`. |
+| SE-18 | MEDIUM | 60 Hz `CFrame` spam saturating replication | Use `UnreliableRemoteEvent` + 18-byte `buffer` @ 15–20 Hz + `Lerp` smoothing. |
+| SE-19 | MEDIUM | Constraint teleport fling on checkpoint reset | Disable constraints, zero `AssemblyLinearVelocity`/`Angular`, `PivotTo`, `PostSimulation:Wait()`, re-enable. |
