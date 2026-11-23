@@ -4,7 +4,7 @@ description: >
   Expert Roblox game development companion — enforces --!strict Luau, modular
   ModuleScript Service-Controller architecture, server-authoritative Client-Server
   security, 3-layer DataStore/MemoryStore management, Roblox Studio MCP integration,
-  elimination-survival, co-op physics obby, survival/expedition, simulator, tycoon,
+  game ideation & viral pitch builder, elimination-survival, co-op physics obby, survival/expedition, simulator, tycoon,
   obby, RPG, horror, battle royale, performance.
 user-invocable: true
 ---
@@ -73,6 +73,7 @@ Match user intent and load the corresponding files:
 
 | User Intent | Load |
 |---|---|
+| Blank-slate game ideation / "make a game" / brainstorm pitches | `workflows/game-ideator.md` |
 | Modular services / Signal bus / refactor spaghetti | `references/modular-service-architecture.md` + `references/architecture-patterns.md` |
 | Build 2-player co-op physics / tethered / asymmetric obby | `workflows/new-game.md` + `templates/genre-coop-physics-obby.md` + `templates/game-scaffold.md` |
 | Build elimination trial / Simon Says / Death Penalty / Ink Game | `workflows/new-game.md` + `templates/genre-elimination-survival.md` + `templates/game-scaffold.md` |
@@ -97,7 +98,7 @@ Match user intent and load the corresponding files:
 | Inventory / items (`InstanceUUID`) | `references/inventory-systems.md` |
 | GUI / UI | `references/gui-systems.md` |
 
-If intent is ambiguous, ask one clarifying question, then route.
+If the user wants to start a new game from scratch without specifying a genre/design, trigger `workflows/game-ideator.md` (Phase 1 greeting). Otherwise if intent is ambiguous, ask one clarifying question, then route.
 
 ---
 

@@ -1,10 +1,12 @@
-# roblox-game — Claude Code Skill
+# roblox-game — Antigravity & Claude Code Skill
 
-The ultimate Roblox game development Claude Code skill. A self-contained, full-lifecycle development companion that serves all skill levels with deep Luau expertise, autonomous game building via MCP Studio integration, and comprehensive knowledge of game design, monetization, security, and performance optimization.
+> **Antigravity ile uyumludur.**
+
+The ultimate Roblox game development skill for **Google Antigravity** and **Claude Code**. A self-contained, full-lifecycle development companion that serves all skill levels with deep `--!strict` Luau expertise, interactive game ideation, autonomous game building via MCP Studio integration, and comprehensive knowledge of game design, monetization, security, and performance optimization.
 
 ## Stats
 
-- **17 deep reference files** | **10 game templates** | **7 guided workflows**
+- **17 deep reference files** | **10 game templates** | **8 guided workflows**
 - `--!strict` Luau & modular `ModuleScript` Service-Controller architecture enforced by default
 - 3-mode MCP Studio integration (full/standard/offline)
 
@@ -44,7 +46,8 @@ roblox-game/
 │   ├── genre-rpg.md                      # Blox Fruits style
 │   ├── genre-horror.md                   # Doors style
 │   └── genre-battle-royale.md            # Battle royale style
-└── workflows/                            # 7 guided workflows
+└── workflows/                            # 8 guided workflows
+    ├── game-ideator.md                   # Interactive 3-phase ideation & viral pitch builder
     ├── new-game.md
     ├── debug-loop.md
     ├── performance-audit.md
@@ -82,6 +85,7 @@ Each template includes complete, production-ready Luau code for every core syste
 
 ### Guided Workflows
 
+- **Game Ideator & Builder** — 7-genre selector, 3 viral pitch generator with thumbnail/monetization hooks, and full modular build
 - **New Game** — Build a complete game from a description in 8 steps
 - **Debug Loop** — Iterative error detection and fixing (max 5 attempts)
 - **Performance Audit** — Part count, script, memory, and network analysis
@@ -122,7 +126,11 @@ The skill is automatically invoked when you mention Roblox, Luau, game developme
 
 ## Installation
 
-Global skill location: `~/.gemini/config/skills/roblox-game/`.
+Antigravity ile uyumludur — global skill dizini: `~/.gemini/config/skills/roblox-game/` (veya Claude Code için `~/.claude/skills/roblox-game/`).
+
+```bash
+git clone https://github.com/mxxnthefinest/roblox-game-skill.git ~/.gemini/config/skills/roblox-game
+```
 
 ## Design Documents
 

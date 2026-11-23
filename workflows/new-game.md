@@ -4,7 +4,7 @@
 
 This is the guided workflow for building a complete Roblox game from scratch. It walks the user through genre selection, scoping, architecture, scaffolding, core system generation, integration testing, and a final summary with next steps.
 
-**Trigger:** User wants to build a new game, create a game, or start a project.
+**Trigger:** User wants to build a new game with a known genre/concept. *(If the user has a blank slate or asks for game ideas/pitches first, start with `workflows/game-ideator.md` Phases 1–2, then continue here at Step 3–4.)*
 
 **Prerequisites:** MCP mode must already be detected per SKILL.md (Full, Standard, or Offline).
 
